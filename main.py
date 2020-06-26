@@ -63,7 +63,7 @@ class main(BoxLayout):
 		
 		self.skill = float(self.stats["DEFAULT"]["level"])
 		self.fish.set_skill_level(self.skill)
-		self.fish.depth = "17"
+		self.fish.depth = "18"
 		
 		self.update_board()
 		
@@ -179,7 +179,6 @@ class main(BoxLayout):
 				a.write(f)
 			
 			accounts.set(a)
-			total_voted.set(set())
 			
 			self.update_info(text = "Twitch chat won, %d points awarded to participants" % (self.skill * 100), hold = True)
 			if self.skill < 20:
@@ -192,12 +191,14 @@ class main(BoxLayout):
 				self.skill -= 1
 				self.fish.set_skill_level(self.skill)
 			self.update_info(text = "Twitch chat lost", hold = True)
+		
+		total_voted.set(set())
 			
 		self.board.reset()
-		self.set_legal_moves()
 		self.is_white = not self.is_white
 		if not self.is_white:
 			self.fish_move()
+		self.set_legal_moves()
 		self.counting = False
 		
 		Clock.schedule_once(self.end_game_, 4)
@@ -220,7 +221,7 @@ class main(BoxLayout):
 		global voted
 		moves.clear()
 		for move in self.board.legal_moves:
-			moves[self.board.san(move.from_uci(move.uci()))] = 0
+			moves[self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")] = 0
 		moves["resign"] = 0
 		#moves["draw"] = 0
 		self.moves_string = "Legal moves, type in chat to vote (case sensitive):\n" + ", ".join(moves.keys())
@@ -269,13 +270,13 @@ async def event_message(ctx):
 	await bot.handle_commands(ctx)
 	# Add move to tally if valid
 	votes = voted.value
-		
-	if ctx.content in moves and not (ctx.author.name in votes):
+	comment = ctx.content.replace("+", "").replace("#","")
+	if comment in moves and not (ctx.author.name in votes):
 		if len(votes) == 0:
 			ws = bot._ws
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me The first vote has been cast, a move will be made in 15 seconds")
 		
-		moves[ctx.content] += 1
+		moves[comment] += 1
 		votes.add(ctx.author.name)
 		voted.set(votes)
 		t = total_voted.value
