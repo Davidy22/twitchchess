@@ -10,27 +10,11 @@ import chess
 import render
 import configparser
 from kivy.clock import Clock
-from twitchio.ext import commands
-from multiprocessing import Process, Manager
 from matplotlib import pyplot
 import numpy as np
 from kivy.config import Config
-from time import sleep
 Config.set('graphics', 'width', '1150')
 Config.set('graphics', 'height', '600')
-
-secrets = configparser.ConfigParser()
-temp = open("secrets.conf")
-secrets.read_file(temp)
-
-
-bot = commands.Bot(
-		irc_token=secrets['DEFAULT']['oath'],
-		client_id=secrets['DEFAULT']['client_id'],
-		nick=secrets['DEFAULT']['nick'],
-		prefix=secrets['DEFAULT']['prefix'],
-		initial_channels=[secrets['DEFAULT']['channel']]
-	)
 
 
 class main(BoxLayout):
@@ -54,7 +38,7 @@ class main(BoxLayout):
 		self.add_widget(self.layer1)
 		self.render = kiImage()
 		self.layer1.add_widget(self.render)
-		self.fish = Stockfish(parameters={"Minimum Thinking Time": 4, "Slow Mover": 10, "Move Overhead": 1})
+		self.fish = Stockfish(parameters={"Minimum Thinking Time": 400, "Slow Mover": 80})
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
@@ -63,7 +47,7 @@ class main(BoxLayout):
 		
 		self.skill = float(self.stats["DEFAULT"]["level"])
 		self.fish.set_skill_level(self.skill)
-		self.fish.depth = "17"
+		self.fish.depth = "14"
 		
 		self.update_board()
 		
@@ -103,6 +87,9 @@ class main(BoxLayout):
 			self.info.text = text
 		
 	def update_board(self):
+		Clock.schedule_once(self._update_board)
+	
+	def _update_board(self, dt):
 		image = self.renderer.draw(self.board.fen(), self.is_white, lastmove = self.lastmove)
 		data = BytesIO()
 		image.save(data, format='png')
@@ -132,6 +119,7 @@ class main(BoxLayout):
 				highmove = move
 				highvote = moves[move]
 		
+		self.counting = False
 		if highmove == "resign":
 			self.end_game("l")
 			return
@@ -142,9 +130,6 @@ class main(BoxLayout):
 			self.board.push_san(highmove)
 			self.update_board()
 		
-		Clock.schedule_once(self.player_move_)
-		
-	def player_move_(self, dt):
 		status = self.board.result()
 		if status == "*":
 			self.fish_move()
@@ -160,12 +145,11 @@ class main(BoxLayout):
 			self.end_game("d")
 		else:
 			self.end_game("w")
-		self.counting = False
-		self.lastmove = None
 	
 	def end_game(self, result):
 		#TODO: logging, rank change, etc
 		self.log(result)
+		self.lastmove = None
 		if result == "w":
 			a = accounts.value
 			votes = total_voted.value
@@ -192,17 +176,12 @@ class main(BoxLayout):
 				self.skill -= 1
 				self.fish.set_skill_level(self.skill)
 			self.update_info(text = "Twitch chat lost", hold = True)
-			
+		
 		self.board.reset()
-		self.set_legal_moves()
 		self.is_white = not self.is_white
 		if not self.is_white:
 			self.fish_move()
-		self.counting = False
-		
-		Clock.schedule_once(self.end_game_, 4)
-		
-	def end_game_(self, dt):
+		self.set_legal_moves()
 		self.update_board()
 	
 	def log(self, result):
@@ -232,6 +211,7 @@ class main(BoxLayout):
 	
 	def tally(self, dt):
 		global moves
+		
 		data = []
 		for move in moves.keys():
 			data.append((move, moves[move]))
@@ -255,69 +235,7 @@ class main(BoxLayout):
 			self.countdown = 15
 			self.counting = True
 			
-		
-@bot.event
-async def event_ready():
-	print(f"{secrets['DEFAULT']['nick']} is online!")
-	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me bot now listening")
-
-@bot.event
-async def event_message(ctx):
-	global moves
-	global voted
-	await bot.handle_commands(ctx)
-	# Add move to tally if valid
-	votes = voted.value
-		
-	if ctx.content in moves and not (ctx.author.name in votes):
-		if len(votes) == 0:
-			ws = bot._ws
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me The first vote has been cast, a move will be made in 15 seconds")
-		
-		moves[ctx.content] += 1
-		votes.add(ctx.author.name)
-		voted.set(votes)
-		t = total_voted.value
-		t.add(ctx.author.name)
-		total_voted.set(t)
-
-@bot.command(name="notation")
-async def command_notation(ctx):
-	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/")
-
-@bot.command(name="points")
-async def command_points(ctx):
-	ws = bot._ws
-	a = accounts.value
-	print(a)
-	if ctx.author.name in a["DEFAULT"].keys():
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you have %s points." % (ctx.author.name, a["DEFAULT"][ctx.author.name]))
-	else:
-		a["DEFAULT"][ctx.author.name] = "0"
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you have %s points." % (ctx.author.name, "0"))
-		accounts.set(a)
-
-
 class chessApp(App):
 
 	def build(self):
 		return main()
-
-if __name__ == '__main__':
-	# TODO: Replace globals with SQLlite
-	a = configparser.ConfigParser()
-	temp = open("accounts.conf")
-	a.read_file(temp)
-	
-	accounts = Manager().Value(configparser.ConfigParser, a)
-	moves = Manager().dict()
-	voted = Manager().Value(set, set())
-	total_voted = Manager().Value(set, set())
-	p1 = Process(target=bot.run)
-	p2 = Process(target=chessApp().run)
-	p1.start()
-	p2.start()
-	p1.join()
-	p2.join()
