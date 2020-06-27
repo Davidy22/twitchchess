@@ -1,12 +1,14 @@
 from kivy.core.image import Image as CoreImage
 from kivy.uix.image import Image as kiImage
+from kivy.graphics import Color, Rectangle
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from stockfish import Stockfish
 import chess
+import chess.pgn
 import render
 import configparser
 from kivy.clock import Clock
@@ -16,8 +18,8 @@ from matplotlib import pyplot
 import numpy as np
 from kivy.config import Config
 from time import sleep
-Config.set('graphics', 'width', '1150')
-Config.set('graphics', 'height', '600')
+Config.set('graphics', 'width', '1280')
+Config.set('graphics', 'height', '720')
 
 secrets = configparser.ConfigParser()
 temp = open("secrets.conf")
@@ -33,12 +35,15 @@ bot = commands.Bot(
 	)
 
 
-class main(BoxLayout):
+class main(FloatLayout):
 	def __init__(self, **kwargs):
 		super(main, self).__init__(**kwargs)
 		global moves
 		global voted
-		self.size_hint_y = 1
+		self.size = (1280,720)
+		with self.canvas:
+			Color(rgb=(1,1,1))
+			Rectangle(size=self.size, pos=self.pos)
 		self.orientation = "vertical"
 		self.countdown = 0
 		self.counting = False
@@ -50,10 +55,8 @@ class main(BoxLayout):
 		temp = open("game.log")
 		self.stats.read_file(temp)
 		
-		self.layer1 = BoxLayout(orientation = "horizontal", size_hint_y = 0.7)
-		self.add_widget(self.layer1)
-		self.render = kiImage()
-		self.layer1.add_widget(self.render)
+		self.render = kiImage(pos = (-350,70))
+		self.add_widget(self.render)
 		self.fish = Stockfish(parameters={"Minimum Thinking Time": 4, "Slow Mover": 10, "Move Overhead": 1})
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
@@ -67,22 +70,37 @@ class main(BoxLayout):
 		
 		self.update_board()
 		
-		self.move_ranks = kiImage()
-		self.layer1.add_widget(self.move_ranks)
+		self.move_ranks = kiImage(pos = (140,223))
+		self.add_widget(self.move_ranks)
 		
 		self.info_text = "Stockfish level: %d" % self.skill
-		self.info = Label(text = self.info_text, size_hint_y = 0.2, size_hint_x = 1)
-		self.move_options = Label(text = self.moves_string, size_hint_y = 0.2, size_hint_x = 1)
-		self.set_legal_moves()
-		self.info.text_size = (300, 60)
-		self.move_options.text_size = (700, 80)
+		self.info = Label(text = self.info_text, size_hint_y = 1, size_hint_x = 1, markup = True, text_size = (500, 100), pos = (200, 36), valign = "top")
 		self.add_widget(self.info)
+		
+		self.move_options = Label(text = self.moves_string, markup = True, text_size = (1260, 200), pos = (10, -320), valign = "top")
+		self.set_legal_moves()
 		self.add_widget(self.move_options)
+		
+		self.game_history = chess.pgn.Game()
+		self.last_game_node = None
+		self.move_history = Label(text = self.format_text("Move history:"), markup = True, text_size = (700, 240), pos = (300, -120), valign = "top")
+		self.set_legal_moves()
+		self.add_widget(self.move_history)
 		
 		self.countdown = False
 		
 		Clock.schedule_interval(self.tally, 2)
 		Clock.schedule_interval(self.update_info, 1)
+	
+	def format_text(self, text, font_size = 23):
+		return "[color=000000][size=%d][b]%s[/b][/size][/color]" % (font_size, text)
+		
+	def update_history(self):
+		if self.last_game_node is None:
+			self.last_game_node = self.game_history.add_main_variation(self.board.move_stack[-1])
+		else:
+			self.last_game_node = self.last_game_node.add_main_variation(self.board.move_stack[-1])
+		self.move_history.text = self.format_text("Move history:\n%s" % str(self.game_history.mainline_moves()), font_size = 22)
 		
 	def update_info(self, dt = 0, text = None, hold = False):
 		if self.hold_message_ticks > 0:
@@ -98,10 +116,10 @@ class main(BoxLayout):
 				if self.countdown < 0:
 					self.countdown = 0
 				self.info_text += "\n%d seconds left to vote this turn" % self.countdown
-			self.info.text = self.info_text
+			self.info.text =  self.format_text(self.info_text)
 		else:
-			self.info.text = text
-		
+			self.info.text = self.format_text(text)
+	
 	def update_board(self):
 		image = self.renderer.draw(self.board.fen(), self.is_white, lastmove = self.lastmove)
 		data = BytesIO()
@@ -122,6 +140,7 @@ class main(BoxLayout):
 		self.lastmove = self.fish.get_best_move()
 		self.board.push_uci(self.lastmove)
 		self.update_board()
+		self.update_history()
 	
 	def player_move(self, dt):
 		pyplot.clf()
@@ -142,6 +161,7 @@ class main(BoxLayout):
 			self.board.push_san(highmove)
 			self.update_board()
 		
+		self.update_history()
 		Clock.schedule_once(self.player_move_)
 		
 	def player_move_(self, dt):
@@ -224,7 +244,7 @@ class main(BoxLayout):
 			moves[self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")] = 0
 		moves["resign"] = 0
 		#moves["draw"] = 0
-		self.moves_string = "Legal moves, type in chat to vote (case sensitive):\n" + ", ".join(moves.keys())
+		self.moves_string = self.format_text("Legal moves, type in chat to vote (case sensitive):\n" + ", ".join(moves.keys()))
 		self.move_options.text = self.moves_string
 		voted.set(set())
 		
@@ -243,11 +263,12 @@ class main(BoxLayout):
 		for i in data[:7]:
 			labels.append(i[0])
 			quantity.append(i[1])
-		
+			
 		y = np.arange(len(labels))
-		pyplot.bar(y, quantity, align='center', alpha=0.5)
+		pyplot.figure(figsize = (5,3))
+		pyplot.bar(y, quantity, align='center', alpha=0.5, width=1.0)
 		pyplot.xticks(y, labels)
-		pyplot.ylim(ymin=0)
+		pyplot.ylim(ymin=0, ymax=quantity[0])
 		pyplot.gca().axes.get_yaxis().set_visible(False)
 		self.update_plot()
 		
