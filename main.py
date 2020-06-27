@@ -95,11 +95,15 @@ class main(FloatLayout):
 	def format_text(self, text, font_size = 23):
 		return "[color=000000][size=%d][b]%s[/b][/size][/color]" % (font_size, text)
 		
-	def update_history(self):
-		if self.last_game_node is None:
-			self.last_game_node = self.game_history.add_main_variation(self.board.move_stack[-1])
+	def update_history(self, reset = False):
+		if reset:
+			self.game_history = chess.pgn.Game()
+			self.last_game_node = None
 		else:
-			self.last_game_node = self.last_game_node.add_main_variation(self.board.move_stack[-1])
+			if self.last_game_node is None:
+				self.last_game_node = self.game_history.add_main_variation(self.board.move_stack[-1])
+			else:
+				self.last_game_node = self.last_game_node.add_main_variation(self.board.move_stack[-1])
 		self.move_history.text = self.format_text("Move history:\n%s" % str(self.game_history.mainline_moves()), font_size = 22)
 		
 	def update_info(self, dt = 0, text = None, hold = False):
@@ -215,6 +219,7 @@ class main(FloatLayout):
 		total_voted.set(set())
 			
 		self.board.reset()
+		self.update_history(reset=True)
 		self.is_white = not self.is_white
 		if not self.is_white:
 			self.fish_move()
@@ -271,6 +276,7 @@ class main(FloatLayout):
 		pyplot.ylim(ymin=0, ymax=quantity[0])
 		pyplot.gca().axes.get_yaxis().set_visible(False)
 		self.update_plot()
+		pyplot.close()
 		
 		if len(voted.get()) > 0 and not self.counting:
 			Clock.schedule_once(self.player_move, 15)
