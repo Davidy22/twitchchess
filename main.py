@@ -13,11 +13,12 @@ import render
 import configparser
 from kivy.clock import Clock
 from twitchio.ext import commands
-from multiprocessing import Process, Manager
+from multiprocessing import Process, Manager, Array
 from matplotlib import pyplot
 import numpy as np
 from kivy.config import Config
 from time import sleep
+from datetime import date
 Config.set('graphics', 'width', '1280')
 Config.set('graphics', 'height', '720')
 
@@ -66,7 +67,7 @@ class main(FloatLayout):
 		
 		self.skill = float(self.stats["DEFAULT"]["level"])
 		self.fish.set_skill_level(self.skill)
-		self.fish.depth = "18"
+		self.fish.depth = "19"
 		
 		self.update_board()
 		
@@ -74,20 +75,22 @@ class main(FloatLayout):
 		self.add_widget(self.move_ranks)
 		
 		self.info_text = "Stockfish level: %d" % self.skill
-		self.info = Label(text = self.info_text, size_hint_y = 1, size_hint_x = 1, markup = True, text_size = (500, 100), pos = (200, 36), valign = "top")
+		self.info = Label(text = self.info_text, size_hint_y = 1, size_hint_x = 1, markup = True, text_size = (500, 100), pos = (200, 45), valign = "top")
 		self.add_widget(self.info)
 		
-		self.move_options = Label(text = self.moves_string, markup = True, text_size = (1260, 200), pos = (10, -320), valign = "top")
+		self.move_options = Label(text = self.moves_string, markup = True, text_size = (1260, 200), pos = (10, -330), valign = "top")
 		self.set_legal_moves()
 		self.add_widget(self.move_options)
 		
 		self.game_history = chess.pgn.Game()
 		self.last_game_node = None
-		self.move_history = Label(text = self.format_text("Move history:"), markup = True, text_size = (700, 240), pos = (300, -120), valign = "top")
+		self.move_history = Label(text = self.format_text("Move history:", font_size = 17), markup = True, text_size = (660, 280), pos = (280, -120), valign = "top")
 		self.set_legal_moves()
+		self.update_history(reset=True)
 		self.add_widget(self.move_history)
 		
 		self.countdown = False
+		self.update_plot(init = True)
 		
 		Clock.schedule_interval(self.tally, 2)
 		Clock.schedule_interval(self.update_info, 1)
@@ -99,12 +102,23 @@ class main(FloatLayout):
 		if reset:
 			self.game_history = chess.pgn.Game()
 			self.last_game_node = None
+			self.game_history.headers["Event"] = "Twitch plays chess"
+			self.game_history.headers["Site"] = "Twitch.tv"
+			self.game_history.headers["Date"] = date.today().strftime("%Y/%m/%d")
+			self.game_history.headers["Round"] = 1 # TODO: Write conn
+			if self.is_white:
+				self.game_history.headers["White"] = "Twitch chat"
+				self.game_history.headers["Black"] = "Stockfish %d" % self.skill
+			else:
+				self.game_history.headers["White"] = "Stockfish %d" % self.skill
+				self.game_history.headers["Black"] = "Twitch chat"
+			#self.game_history["Result"]
 		else:
 			if self.last_game_node is None:
 				self.last_game_node = self.game_history.add_main_variation(self.board.move_stack[-1])
 			else:
 				self.last_game_node = self.last_game_node.add_main_variation(self.board.move_stack[-1])
-		self.move_history.text = self.format_text("Move history:\n%s" % str(self.game_history.mainline_moves()), font_size = 22)
+		self.move_history.text = self.format_text("Move history:\n%s" % str(self.game_history.mainline_moves()), font_size = 17)
 		
 	def update_info(self, dt = 0, text = None, hold = False):
 		if self.hold_message_ticks > 0:
@@ -114,15 +128,15 @@ class main(FloatLayout):
 			self.hold_message_ticks = 5
 		
 		if text is None:
-			self.info_text = "Opponent: stockfish lvl %d, approx ELO %s\nHikaru approx ELO: 2800" % (self.skill, self.stats["ELO"][str(int(self.skill))])
+			self.info_text = "Opponent: stockfish lvl %d, approx ELO %s\nHikaru approx ELO: 2800" % (self.skill, 1000 + int(self.skill) * 90)
 			if self.countdown > 0:
 				self.countdown -= dt
 				if self.countdown < 0:
 					self.countdown = 0
 				self.info_text += "\n%d seconds left to vote this turn" % self.countdown
-			self.info.text =  self.format_text(self.info_text)
+			self.info.text =  self.format_text(self.info_text, font_size = 20)
 		else:
-			self.info.text = self.format_text(text)
+			self.info.text = self.format_text(text, font_size = 20)
 	
 	def update_board(self):
 		image = self.renderer.draw(self.board.fen(), self.is_white, lastmove = self.lastmove)
@@ -132,12 +146,21 @@ class main(FloatLayout):
 		im = CoreImage(BytesIO(data.read()), ext='png')
 		self.render.texture = im.texture
 		
-	def update_plot(self):
+	def update_plot(self, init = False):
+		if init:
+			pyplot.figure(figsize = (5,3))
+			pyplot.bar([], [], align='center', alpha=0.5, width=1.0)
+			pyplot.xticks([], [])
+			pyplot.gca().axes.get_yaxis().set_visible(False)
+		
 		buf = BytesIO()
 		pyplot.savefig(buf, format='png', bbox_inches='tight')
 		buf.seek(0)
 		im = CoreImage(BytesIO(buf.read()), ext='png')
 		self.move_ranks.texture = im.texture
+		
+		if init:
+			pyplot.close()
 
 	def fish_move(self):
 		self.fish.set_fen_position(self.board.fen())
@@ -150,10 +173,16 @@ class main(FloatLayout):
 		pyplot.clf()
 		highmove = None
 		highvote = -1
-		for move in moves.keys():
-			if moves[move] > highvote:
+		
+		notation_moves_list = notation_moves.get()
+			
+		for move in notation_moves.get():
+			temp = 0
+			for i in notation_moves_list[move]:
+				temp += moves[i]
+			if temp > highvote:
 				highmove = move
-				highvote = moves[move]
+				highvote = temp
 		
 		if highmove == "resign":
 			self.end_game("l")
@@ -166,6 +195,7 @@ class main(FloatLayout):
 			self.update_board()
 		
 		self.update_history()
+		self.update_plot(init = True)
 		Clock.schedule_once(self.player_move_)
 		
 	def player_move_(self, dt):
@@ -220,6 +250,7 @@ class main(FloatLayout):
 			
 		self.board.reset()
 		self.update_history(reset=True)
+		self.update_plot(init = True)
 		self.is_white = not self.is_white
 		if not self.is_white:
 			self.fish_move()
@@ -244,14 +275,24 @@ class main(FloatLayout):
 	def set_legal_moves(self):
 		global moves
 		global voted
+		global notation_moves
 		moves.clear()
+		notation_moves_temp = {}
 		for move in self.board.legal_moves:
-			moves[self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")] = 0
+			temp = set()
+			temp.add(move.uci())
+			temp.add(self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","").casefold())
+			temp.add(self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#",""))
+			for i in temp:
+				moves[i] = 0
+			notation_moves_temp[self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")] = temp
 		moves["resign"] = 0
+		notation_moves_temp["resign"] = ["resign"]
 		#moves["draw"] = 0
-		self.moves_string = self.format_text("Legal moves, type in chat to vote (case sensitive):\n" + ", ".join(moves.keys()))
+		self.moves_string = self.format_text("Legal moves, type in chat to vote. UCI ok, eg. a2a4:\n" + ", ".join(notation_moves_temp))
 		self.move_options.text = self.moves_string
 		voted.set(set())
+		notation_moves.set(notation_moves_temp)
 		
 	def tally_count(self, val):
 		return val[1]
@@ -259,8 +300,16 @@ class main(FloatLayout):
 	def tally(self, dt):
 		global moves
 		data = []
-		for move in moves.keys():
-			data.append((move, moves[move]))
+		people = voted.get()
+		if len(people) == 0:
+			return
+		
+		notation_moves_list = notation_moves.get()
+		for move in notation_moves_list:
+			temp = 0
+			for i in notation_moves_list[move]:
+				temp += moves[i]
+			data.append((move, temp))
 		
 		data.sort(key=self.tally_count, reverse = True)
 		labels = []
@@ -278,7 +327,7 @@ class main(FloatLayout):
 		self.update_plot()
 		pyplot.close()
 		
-		if len(voted.get()) > 0 and not self.counting:
+		if not self.counting:
 			Clock.schedule_once(self.player_move, 15)
 			self.countdown = 15
 			self.counting = True
@@ -297,13 +346,13 @@ async def event_message(ctx):
 	await bot.handle_commands(ctx)
 	# Add move to tally if valid
 	votes = voted.value
-	comment = ctx.content.replace("+", "").replace("#","")
-	if comment in moves and not (ctx.author.name in votes):
+	processed = ctx.content.replace("+", "").replace("#","").casefold()
+	if processed in moves and not (ctx.author.name in votes):
 		if len(votes) == 0:
 			ws = bot._ws
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me The first vote has been cast, a move will be made in 15 seconds")
 		
-		moves[comment] += 1
+		moves[processed] += 1
 		votes.add(ctx.author.name)
 		voted.set(votes)
 		t = total_voted.value
@@ -339,10 +388,12 @@ if __name__ == '__main__':
 	temp = open("accounts.conf")
 	a.read_file(temp)
 	
-	accounts = Manager().Value(configparser.ConfigParser, a)
-	moves = Manager().dict()
-	voted = Manager().Value(set, set())
-	total_voted = Manager().Value(set, set())
+	m = Manager()
+	accounts = m.Value(configparser.ConfigParser, a)
+	moves = m.dict()
+	notation_moves = m.Value(dict, {})
+	voted = m.Value(set, set())
+	total_voted = m.Value(set, set())
 	p1 = Process(target=bot.run)
 	p2 = Process(target=chessApp().run)
 	p1.start()
