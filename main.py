@@ -69,7 +69,7 @@ class main(FloatLayout):
 		
 		self.skill = float(self.stats["DEFAULT"]["level"])
 		self.fish.set_skill_level(self.skill)
-		self.fish.depth = "19"
+		self.fish.depth = "18"
 		
 		self.update_board()
 		
