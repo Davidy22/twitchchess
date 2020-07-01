@@ -51,7 +51,7 @@ class main(FloatLayout):
 		self.counting = False
 		self.hold_message_ticks = 0
 		self.lastmove = None
-		self.evaluations = deque([], 4)
+		self.board_evaluations = deque([], 4)
 		
 		#init from file
 		self.stats = configparser.ConfigParser()
@@ -81,7 +81,6 @@ class main(FloatLayout):
 		self.add_widget(self.info)
 		
 		self.move_options = Label(text = self.moves_string, markup = True, text_size = (1260, 200), pos = (10, -330), valign = "top")
-		self.set_legal_moves()
 		self.add_widget(self.move_options)
 		
 		self.game_history = chess.pgn.Game()
@@ -91,8 +90,12 @@ class main(FloatLayout):
 		self.update_history(reset=True)
 		self.add_widget(self.move_history)
 		
+		self.thinking_label = Label(text = self.format_text("Thinking...", font_size = 65), markup = True, text_size = (1260, 200), pos = (6000, 180), valign = "top")
+		self.add_widget(self.thinking_label)
+		
 		self.countdown = False
 		self.update_plot(init = True)
+		self.evaluate_position()
 		
 		Clock.schedule_interval(self.tally, 2)
 		Clock.schedule_interval(self.update_info, 1)
@@ -102,6 +105,27 @@ class main(FloatLayout):
 		
 	def evaluate_draw(self):
 		return self.board.has_insufficient_material(not self.is_white)
+	
+	def evaluate_position(self):
+		self.fish.set_fen_position(self.board.fen())
+		self.board_evaluations.append(self.fish.get_evaluation())
+	
+	def evaluate_resign(self):
+		if self.board_evaluations[-1]["type"] == "mate":
+			return (self.is_white and self.board_evaluations[-1]["value"] > 0) or (not self.is_white and self.board_evaluations[-1]["value"] < 0)
+		else:
+			for i in self.board_evaluations:
+				#assume fish white
+				if self.is_white:
+					const = -1
+				else:
+					const = 1
+				if i["type"] == "mate" and i["value"] * const > 0:
+					return False
+				if i["type"] == "cp" and i["value"] * const > -650:
+					return False
+			
+			return True
 		
 	def update_history(self, reset = False):
 		if reset:
@@ -133,7 +157,18 @@ class main(FloatLayout):
 			self.hold_message_ticks = 5
 		
 		if text is None:
-			self.info_text = "Opponent: stockfish lvl %d, approx ELO %s\nHikaru approx ELO: 2800" % (self.skill, 1000 + int(self.skill) * 90)
+			self.info_text = "Opponent: stockfish lvl %d, approx ELO %s" % (self.skill, 1000 + int(self.skill) * 90)
+			
+			if self.board_evaluations[-1]["type"] == "mate":
+				if self.board_evaluations[-1]["value"] > 0:
+					self.info_text += "\nWhite mate in %d" % self.board_evaluations[-1]["value"]
+				else:
+					self.info_text += "\nBlack mate in %d" % self.board_evaluations[-1]["value"]
+			else:
+				if self.is_white:
+					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
+				else:
+					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / -100)
 			if self.countdown > 0:
 				self.countdown -= dt
 				if self.countdown < 0:
@@ -168,11 +203,21 @@ class main(FloatLayout):
 			pyplot.close()
 
 	def fish_move(self):
+		if self.evaluate_resign():
+			self.end_game("w")
+			return
+		self.thinking_label.pos = (600, 180)
+		Clock.schedule_once(self.fish_move_)
+	
+	def fish_move_(self, dt):
 		self.fish.set_fen_position(self.board.fen())
 		self.lastmove = self.fish.get_best_move()
 		self.board.push_uci(self.lastmove)
 		self.update_board()
 		self.update_history()
+		self.evaluate_position()
+		self.set_legal_moves()
+		self.thinking_label.pos = (6000, 180)
 	
 	def player_move(self, dt):
 		pyplot.clf()
@@ -204,9 +249,11 @@ class main(FloatLayout):
 		else:
 			self.board.push_san(highmove)
 			self.update_board()
+			self.evaluate_position()
 		
 		self.update_history()
 		self.update_plot(init = True)
+		self.update_info()
 		Clock.schedule_once(self.player_move_)
 		
 	def player_move_(self, dt):
@@ -215,7 +262,7 @@ class main(FloatLayout):
 			self.fish_move()
 			status = self.board.result()
 			if status == "*":
-				self.set_legal_moves()
+				pass
 			elif status == "1/2-1/2":
 				self.end_game("d")
 			else:
@@ -230,6 +277,7 @@ class main(FloatLayout):
 	
 	def end_game(self, result):
 		#TODO: logging, rank change, etc
+		self.lastmove = None
 		self.log(result)
 		if result == "w":
 			a = accounts.value
@@ -265,7 +313,8 @@ class main(FloatLayout):
 		self.is_white = not self.is_white
 		if not self.is_white:
 			self.fish_move()
-		self.set_legal_moves()
+		else:
+			self.set_legal_moves()
 		self.counting = False
 		
 		Clock.schedule_once(self.end_game_, 4)
