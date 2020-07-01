@@ -19,6 +19,7 @@ import numpy as np
 from kivy.config import Config
 from time import sleep
 from datetime import date
+from collections import deque
 Config.set('graphics', 'width', '1280')
 Config.set('graphics', 'height', '720')
 
@@ -50,6 +51,7 @@ class main(FloatLayout):
 		self.counting = False
 		self.hold_message_ticks = 0
 		self.lastmove = None
+		self.evaluations = deque([], 4)
 		
 		#init from file
 		self.stats = configparser.ConfigParser()
@@ -97,6 +99,9 @@ class main(FloatLayout):
 	
 	def format_text(self, text, font_size = 23):
 		return "[color=000000][size=%d][b]%s[/b][/size][/color]" % (font_size, text)
+		
+	def evaluate_draw(self):
+		return self.board.has_insufficient_material(not self.is_white)
 		
 	def update_history(self, reset = False):
 		if reset:
@@ -188,7 +193,13 @@ class main(FloatLayout):
 			self.end_game("l")
 			return
 		elif highmove == "draw":
-			# Evaluate draw, has_insufficient_material()
+			if self.evaluate_draw():
+				self.end_game("d")
+			else:
+				self.update_info(text = "Draw rejected", hold = True)
+				self.set_legal_moves()
+				self.counting = False
+				self.update_plot(init = True)
 			return
 		else:
 			self.board.push_san(highmove)
@@ -288,7 +299,8 @@ class main(FloatLayout):
 			notation_moves_temp[self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")] = temp
 		moves["resign"] = 0
 		notation_moves_temp["resign"] = ["resign"]
-		#moves["draw"] = 0
+		moves["draw"] = 0
+		notation_moves_temp["draw"] = ["draw"]
 		self.moves_string = self.format_text("Legal moves, type in chat to vote. UCI ok, eg. a2a4:\n" + ", ".join(notation_moves_temp))
 		self.move_options.text = self.moves_string
 		voted.set(set())
@@ -300,8 +312,7 @@ class main(FloatLayout):
 	def tally(self, dt):
 		global moves
 		data = []
-		people = voted.get()
-		if len(people) == 0:
+		if len(voted.get()) == 0:
 			return
 		
 		notation_moves_list = notation_moves.get()
