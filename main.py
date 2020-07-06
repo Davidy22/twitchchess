@@ -224,6 +224,14 @@ class main(FloatLayout):
 		Clock.schedule_once(self.fish_move_)
 	
 	def fish_move_(self, dt):
+		status = self.board.result()
+		if status == "*":
+			pass
+		elif status == "1/2-1/2":
+			self.end_game("d")
+		else:
+			#pause before ending game
+			self.end_game("l")
 		self.fish.set_fen_position(self.board.fen())
 		self.lastmove = self.fish.get_best_move()
 		self.board.push_uci(self.lastmove)
@@ -274,14 +282,6 @@ class main(FloatLayout):
 		status = self.board.result()
 		if status == "*":
 			self.fish_move()
-			status = self.board.result()
-			if status == "*":
-				pass
-			elif status == "1/2-1/2":
-				self.end_game("d")
-			else:
-				#pause before ending game
-				self.end_game("l")
 		elif status == "1/2-1/2":
 			self.end_game("d")
 		else:
