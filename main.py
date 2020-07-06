@@ -116,7 +116,8 @@ class main(FloatLayout):
 			self.fish.set_fen_position(self.board.fen())
 			self.board_evaluations.append(self.fish.get_evaluation())
 		except:
-			print("evaluate failed for %s%" % self.board.fen())
+			# No eval given on finished games
+			pass
 	
 	def evaluate_resign(self):
 		if self.board_evaluations[-1]["type"] == "mate":
@@ -422,9 +423,11 @@ async def event_ready():
 
 @bot.event
 async def event_message(ctx):
+	await bot.handle_commands(ctx)
+	if ctx.author.name == "twitch_plays_chess_":
+		return
 	global moves
 	global voted
-	await bot.handle_commands(ctx)
 	# Add move to tally if valid
 	votes = voted.value
 	processed = ctx.content.replace("+", "").replace("#","").casefold()
@@ -464,12 +467,9 @@ async def command_pgn(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
 	if len(params) > 0:
-		if params[0] == "current":
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % history.value)
-		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % db.get_game(get_params(ctx.content)[0]))
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % db.get_game(get_params(ctx.content)[0]))
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must provide a game ID or type 'current' to get the current game.")
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % history.value)
 
 @bot.command(name="gamble")
 async def command_gamble(ctx):
@@ -484,6 +484,10 @@ async def command_gamble(ctx):
 			except:
 				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
 				return
+		
+		if delta < 69:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Minimum gamble amount is 69")
+			return
 		
 		if db.change_points(ctx.author.name, -delta):
 			if random.choice([True, False]):

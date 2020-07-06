@@ -130,3 +130,5 @@ dmypy.json
 
 *.db
 *.conf
+*.db-journal
+log*
