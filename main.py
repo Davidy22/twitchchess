@@ -20,6 +20,9 @@ from kivy.config import Config
 from time import sleep
 from datetime import date
 from collections import deque
+import tpcdb
+from util import *
+import random
 Config.set('graphics', 'width', '1280')
 Config.set('graphics', 'height', '720')
 
@@ -27,6 +30,7 @@ secrets = configparser.ConfigParser()
 temp = open("secrets.conf")
 secrets.read_file(temp)
 
+db = tpcdb.conn()
 
 bot = commands.Bot(
 		irc_token=secrets['DEFAULT']['oath'],
@@ -54,9 +58,9 @@ class main(FloatLayout):
 		self.board_evaluations = deque([], 4)
 		
 		#init from file
-		self.stats = configparser.ConfigParser()
-		temp = open("game.log")
-		self.stats.read_file(temp)
+		#self.stats = configparser.ConfigParser()
+		#temp = open("game.log")
+		#self.stats.read_file(temp)
 		
 		self.render = kiImage(pos = (-350,70))
 		self.add_widget(self.render)
@@ -64,11 +68,12 @@ class main(FloatLayout):
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
-		self.board.set_fen(self.stats["GAME"]["board"])
+		#self.board.set_fen(self.stats["GAME"]["board"])
 		self.is_white = self.board.turn
+		self.record = db.get_record()
+		self.round = db.get_round_no()
 		
-		self.skill = float(self.stats["DEFAULT"]["level"])
-		self.fish.set_skill_level(self.skill)
+		self.fish.set_skill_level(db.get_level())
 		self.fish.depth = "18"
 		
 		self.update_board()
@@ -76,8 +81,8 @@ class main(FloatLayout):
 		self.move_ranks = kiImage(pos = (140,223))
 		self.add_widget(self.move_ranks)
 		
-		self.info_text = "Stockfish level: %d" % self.skill
-		self.info = Label(text = self.info_text, size_hint_y = 1, size_hint_x = 1, markup = True, text_size = (500, 100), pos = (200, 45), valign = "top")
+		self.info_text = "Stockfish level: %d" % db.get_level()
+		self.info = Label(text = self.info_text, size_hint_y = 1, size_hint_x = 1, markup = True, text_size = (660, 100), pos = (280, 45), valign = "top")
 		self.add_widget(self.info)
 		
 		self.move_options = Label(text = self.moves_string, markup = True, text_size = (1260, 200), pos = (10, -330), valign = "top")
@@ -107,8 +112,11 @@ class main(FloatLayout):
 		return self.board.has_insufficient_material(not self.is_white)
 	
 	def evaluate_position(self):
-		self.fish.set_fen_position(self.board.fen())
-		self.board_evaluations.append(self.fish.get_evaluation())
+		try:
+			self.fish.set_fen_position(self.board.fen())
+			self.board_evaluations.append(self.fish.get_evaluation())
+		except:
+			print("evaluate failed for %s%" % self.board.fen())
 	
 	def evaluate_resign(self):
 		if self.board_evaluations[-1]["type"] == "mate":
@@ -122,7 +130,7 @@ class main(FloatLayout):
 					const = 1
 				if i["type"] == "mate" and i["value"] * const > 0:
 					return False
-				if i["type"] == "cp" and i["value"] * const > -650:
+				if i["type"] == "cp" and i["value"] * const > -750:
 					return False
 			
 			return True
@@ -134,12 +142,12 @@ class main(FloatLayout):
 			self.game_history.headers["Event"] = "Twitch plays chess"
 			self.game_history.headers["Site"] = "Twitch.tv"
 			self.game_history.headers["Date"] = date.today().strftime("%Y/%m/%d")
-			self.game_history.headers["Round"] = 1 # TODO: Write conn
+			self.game_history.headers["Round"] = self.round
 			if self.is_white:
 				self.game_history.headers["White"] = "Twitch chat"
-				self.game_history.headers["Black"] = "Stockfish %d" % self.skill
+				self.game_history.headers["Black"] = "Stockfish %d" % db.get_level()
 			else:
-				self.game_history.headers["White"] = "Stockfish %d" % self.skill
+				self.game_history.headers["White"] = "Stockfish %d" % db.get_level()
 				self.game_history.headers["Black"] = "Twitch chat"
 			#self.game_history["Result"]
 		else:
@@ -147,7 +155,9 @@ class main(FloatLayout):
 				self.last_game_node = self.game_history.add_main_variation(self.board.move_stack[-1])
 			else:
 				self.last_game_node = self.last_game_node.add_main_variation(self.board.move_stack[-1])
-		self.move_history.text = self.format_text("Move history:\n%s" % str(self.game_history.mainline_moves()), font_size = 17)
+		hist = str(self.game_history.mainline_moves())
+		history.set(hist)
+		self.move_history.text = self.format_text("Move history:\n%s" % hist, font_size = 17)
 		
 	def update_info(self, dt = 0, text = None, hold = False):
 		if self.hold_message_ticks > 0:
@@ -157,18 +167,21 @@ class main(FloatLayout):
 			self.hold_message_ticks = 5
 		
 		if text is None:
-			self.info_text = "Opponent: stockfish lvl %d, approx ELO %s" % (self.skill, 1000 + int(self.skill) * 90)
+			skill = db.get_level()
+			self.info_text = "Opponent: stockfish lvl %d, approx ELO %d" % (skill, int(1000 + skill * 90))
 			
 			if self.board_evaluations[-1]["type"] == "mate":
 				if self.board_evaluations[-1]["value"] > 0:
 					self.info_text += "\nWhite mate in %d" % self.board_evaluations[-1]["value"]
 				else:
-					self.info_text += "\nBlack mate in %d" % self.board_evaluations[-1]["value"]
+					self.info_text += "\nBlack mate in %d" % (self.board_evaluations[-1]["value"] * -1)
 			else:
 				if self.is_white:
 					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
 				else:
 					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / -100)
+			
+			self.info_text += ", Game %d, W:%d, D:%d, L:%d" % (self.round, self.record[0], self.record[1], self.record[2])
 			if self.countdown > 0:
 				self.countdown -= dt
 				if self.countdown < 0:
@@ -278,60 +291,68 @@ class main(FloatLayout):
 	def end_game(self, result):
 		#TODO: logging, rank change, etc
 		self.lastmove = None
-		self.log(result)
+		votes = total_voted.value
+		skill = db.get_level()
+		self.log(result, skill, votes)
 		if result == "w":
-			a = accounts.value
-			votes = total_voted.value
 			for vote in votes:
-				if vote in a["DEFAULT"]:
-					a["DEFAULT"][vote] = str(int(int(a["DEFAULT"][vote]) + (self.skill * 100)))
-				else:
-					a["DEFAULT"][vote] = str(int(self.skill * 100))
+				db.change_points(vote, skill * 100)
 			
-			with open("accounts.conf", "w") as f:
-				a.write(f)
-			
-			accounts.set(a)
-			
-			self.update_info(text = "Twitch chat won, %d points awarded to participants" % (self.skill * 100), hold = True)
-			if self.skill < 20:
-				self.skill += 1
-				self.fish.set_skill_level(self.skill)
+			self.update_info(text = "Twitch chat won, %d points awarded to participants" % (skill * 100), hold = True)
+			if skill < 20:
+				skill += 1
+				self.fish.set_skill_level(skill)
+				db.set_level(skill)
 		elif result == "d":
 			self.update_info(text = "You drew", hold = True)
 		else:
-			if self.skill > 1:
-				self.skill -= 1
-				self.fish.set_skill_level(self.skill)
+			if skill > 1:
+				skill -= 1
+				self.fish.set_skill_level(skill)
+				db.set_level(skill)
 			self.update_info(text = "Twitch chat lost", hold = True)
 		
 		total_voted.set(set())
 			
 		self.board.reset()
-		self.update_history(reset=True)
 		self.update_plot(init = True)
 		self.is_white = not self.is_white
+		self.update_history(reset=True)
 		if not self.is_white:
 			self.fish_move()
 		else:
 			self.set_legal_moves()
 		self.counting = False
+		self.evaluate_position()
 		
 		Clock.schedule_once(self.end_game_, 4)
 		
 	def end_game_(self, dt):
 		self.update_board()
 	
-	def log(self, result):
-		if result == "w":
-			self.stats["DEFAULT"]["win"] = str(int(self.stats["DEFAULT"]["win"]) + 1)
-		elif result == "d":
-			self.stats["DEFAULT"]["draw"] = str(int(self.stats["DEFAULT"]["draw"]) + 1)
-		elif result == "l":
-			self.stats["DEFAULT"]["loss"] = str(int(self.stats["DEFAULT"]["loss"]) + 1)
+	def log(self, result, level, voters):
+		self.round += 1
 		
-		#write back
-	
+		if self.is_white:
+			self.game_history.headers["White"] = ", ".join(voters)
+		else:
+			self.game_history.headers["Black"] = ", ".join(voters)
+		
+		if result == "d":
+			self.game_history.headers["Result"] = "1/2-1/2"
+		elif result == "w":
+			if self.is_white:
+				self.game_history.headers["Result"] = "1-0"
+			else:
+				self.game_history.headers["Result"] = "0-1"
+		else:
+			if self.is_white:
+				self.game_history.headers["Result"] = "0-1"
+			else:
+				self.game_history.headers["Result"] = "1-0"
+		
+		db.game_end(result, level, len(voters), str(self.game_history))
+			
 	def set_legal_moves(self):
 		global moves
 		global voted
@@ -412,7 +433,7 @@ async def event_message(ctx):
 			ws = bot._ws
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me The first vote has been cast, a move will be made in 15 seconds")
 		
-		moves[processed] += 1
+		moves[processed] += db.get_player_level(ctx.author.name)
 		votes.add(ctx.author.name)
 		voted.set(votes)
 		t = total_voted.value
@@ -422,38 +443,86 @@ async def event_message(ctx):
 @bot.command(name="notation")
 async def command_notation(ctx):
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/")
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/. You can also type your moves as the starting square followed by the ending square, eg. a4a6, b1d3")
 
 @bot.command(name="points")
 async def command_points(ctx):
 	ws = bot._ws
-	a = accounts.value
-	print(a)
-	if ctx.author.name in a["DEFAULT"].keys():
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you have %s points." % (ctx.author.name, a["DEFAULT"][ctx.author.name]))
+	params = get_params(ctx.content)
+	if len(params) > 0:
+		name = params[0].strip("@")
+		points = db.get_points(name, no_create = True)
+		if points is None:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid username given.")
+		else:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s has %s points." % (name, points))
 	else:
-		a["DEFAULT"][ctx.author.name] = "0"
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you have %s points." % (ctx.author.name, "0"))
-		accounts.set(a)
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you have %s points." % (ctx.author.name, db.get_points(ctx.author.name)))
 
+@bot.command(name="pgn")
+async def command_pgn(ctx):
+	ws = bot._ws
+	params = get_params(ctx.content)
+	if len(params) > 0:
+		if params[0] == "current":
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % history.value)
+		else:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % db.get_game(get_params(ctx.content)[0]))
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must provide a game ID or type 'current' to get the current game.")
+
+@bot.command(name="gamble")
+async def command_gamble(ctx):
+	ws = bot._ws
+	params = get_params(ctx.content)
+	if len(params) > 0:
+		if params[0] == "all":
+			delta = db.get_points(ctx.author.name)
+		else:
+			try:
+				delta = int(params[0])
+			except:
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
+				return
+		
+		if db.change_points(ctx.author.name, -delta):
+			if random.choice([True, False]):
+				db.change_points(ctx.author.name, delta * 2)
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp %s wagered %d points and won, now they have %d points PogChamp" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
+			else:
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me BibleThump %s wagered %d points and lost, now they have %d points BibleThump" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
+		else:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points." % (ctx.author.name, db.get_points(ctx.author.name)))
+			
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
+
+@bot.command(name="buy")
+async def command_buy(ctx):
+	# Make flexible, add more
+	ws = bot._ws
+	params = get_params(ctx.content)
+	if params[0] == "level":
+		cur = db.get_player_level(ctx.author.name)
+		cost = 500 * pow(10, cur)
+		if db.change_points(ctx.author.name, -cost):
+			db.level_up(ctx.author.name)
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now level %d! PogChamp" % (ctx.author.name, cur + 1))
+		else:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, the next level costs %d." % (ctx.author.name, db.get_points(ctx.author.name), cost))
 
 class chessApp(App):
-
 	def build(self):
 		return main()
 
 if __name__ == '__main__':
 	# TODO: Replace globals with SQLlite
-	a = configparser.ConfigParser()
-	temp = open("accounts.conf")
-	a.read_file(temp)
-	
 	m = Manager()
-	accounts = m.Value(configparser.ConfigParser, a)
 	moves = m.dict()
 	notation_moves = m.Value(dict, {})
 	voted = m.Value(set, set())
 	total_voted = m.Value(set, set())
+	history = m.Value(str, "")
 	p1 = Process(target=bot.run)
 	p2 = Process(target=chessApp().run)
 	p1.start()
