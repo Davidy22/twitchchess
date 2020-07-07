@@ -23,6 +23,7 @@ from collections import deque
 import tpcdb
 from util import *
 import random
+from textwrap import wrap
 Config.set('graphics', 'width', '1280')
 Config.set('graphics', 'height', '720')
 
@@ -353,6 +354,7 @@ class main(FloatLayout):
 				self.game_history.headers["Result"] = "1-0"
 		
 		db.game_end(result, level, len(voters), str(self.game_history))
+		self.record = db.get_record()
 			
 	def set_legal_moves(self):
 		global moves
@@ -467,7 +469,8 @@ async def command_pgn(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
 	if len(params) > 0:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % db.get_game(get_params(ctx.content)[0]))
+		for line in wrap(db.get_game(get_params(ctx.content)[0]), 490):
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % line)
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % history.value)
 

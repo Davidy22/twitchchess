@@ -50,12 +50,20 @@ class conn():
 		try:
 			temp = self.c.execute('select * from games where no = ?', (gameid,)).fetchall()[0]
 			f = open("log/%s/%d.pgn" % (temp[1],temp[0]))
-			return " ".join(f.readlines()[8:])
+			
+			if temp[1] == "w":
+				return " ".join(f.readlines()[8:]) + " Win"
+			elif temp[1] == "l":
+				return " ".join(f.readlines()[8:]) + " Loss"
+			else:
+				return " ".join(f.readlines()[8:]) + " Draw"
+				
+			
 		except:
 			return "Invalid game ID"
 	
 	def get_round_no(self):
-		return self.c.execute('select seq from sqlite_sequence where name="games"').fetchall()[0][0] + 1
+		return int(self.c.execute('select seq from sqlite_sequence where name="games"').fetchall()[0][0]) + 1
 	
 	def change_points(self, username, points):
 		# If insufficient points for spending, return false
