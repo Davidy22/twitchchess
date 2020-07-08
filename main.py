@@ -86,12 +86,12 @@ class main(FloatLayout):
 		self.info = Label(text = self.info_text, size_hint_y = 1, size_hint_x = 1, markup = True, text_size = (660, 100), pos = (280, 45), valign = "top")
 		self.add_widget(self.info)
 		
-		self.move_options = Label(text = self.moves_string, markup = True, text_size = (1260, 200), pos = (10, -330), valign = "top")
+		self.move_options = Label(text = self.moves_string, markup = True, text_size = (1260, 200), pos = (2, -317), valign = "top")
 		self.add_widget(self.move_options)
 		
 		self.game_history = chess.pgn.Game()
 		self.last_game_node = None
-		self.move_history = Label(text = self.format_text("Move history:", font_size = 17), markup = True, text_size = (660, 280), pos = (280, -120), valign = "top")
+		self.move_history = Label(text = self.format_text("Move history:", font_size = 17), markup = True, text_size = (660, 280), pos = (28000, -120), valign = "top")
 		self.set_legal_moves()
 		self.update_history(reset=True)
 		self.add_widget(self.move_history)
@@ -106,7 +106,7 @@ class main(FloatLayout):
 		Clock.schedule_interval(self.tally, 2)
 		Clock.schedule_interval(self.update_info, 1)
 	
-	def format_text(self, text, font_size = 23):
+	def format_text(self, text, font_size = 28):
 		return "[color=000000][size=%d][b]%s[/b][/size][/color]" % (font_size, text)
 		
 	def evaluate_draw(self):
@@ -187,9 +187,9 @@ class main(FloatLayout):
 				if self.countdown < 0:
 					self.countdown = 0
 				self.info_text += "\n%d seconds left to vote this turn" % self.countdown
-			self.info.text =  self.format_text(self.info_text, font_size = 20)
+			self.info.text =  self.format_text(self.info_text, font_size = 23)
 		else:
-			self.info.text = self.format_text(text, font_size = 20)
+			self.info.text = self.format_text(text, font_size = 23)
 	
 	def update_board(self):
 		image = self.renderer.draw(self.board.fen(), self.is_white, lastmove = self.lastmove)
@@ -291,6 +291,7 @@ class main(FloatLayout):
 	def end_game(self, result):
 		#TODO: logging, rank change, etc
 		self.lastmove = None
+		self.board_evaluations = deque([], 4)
 		votes = total_voted.value
 		skill = db.get_level()
 		self.log(result, skill, votes)
