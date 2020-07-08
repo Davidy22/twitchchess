@@ -178,10 +178,8 @@ class main(FloatLayout):
 				else:
 					self.info_text += "\nBlack mate in %d" % (self.board_evaluations[-1]["value"] * -1)
 			else:
-				if self.is_white:
-					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
-				else:
-					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / -100)
+				self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
+
 			
 			self.info_text += ", Game %d, W:%d, D:%d, L:%d" % (self.round, self.record[0], self.record[1], self.record[2])
 			if self.countdown > 0:
@@ -455,7 +453,7 @@ async def command_points(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
 	if len(params) > 0:
-		name = params[0].strip("@")
+		name = process_name(params[0])
 		points = db.get_points(name, no_create = True)
 		if points is None:
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid username given.")
