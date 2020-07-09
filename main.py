@@ -121,21 +121,24 @@ class main(FloatLayout):
 			pass
 	
 	def evaluate_resign(self):
-		if self.board_evaluations[-1]["type"] == "mate":
-			return (self.is_white and self.board_evaluations[-1]["value"] > 0) or (not self.is_white and self.board_evaluations[-1]["value"] < 0)
-		else:
-			for i in self.board_evaluations:
-				#assume fish white
-				if self.is_white:
-					const = -1
-				else:
-					const = 1
-				if i["type"] == "mate" and i["value"] * const > 0:
-					return False
-				if i["type"] == "cp" and i["value"] * const > -750:
-					return False
-			
-			return True
+		try:
+			if self.board_evaluations[-1]["type"] == "mate":
+				return (self.is_white and self.board_evaluations[-1]["value"] > 0) or (not self.is_white and self.board_evaluations[-1]["value"] < 0)
+			else:
+				for i in self.board_evaluations:
+					#assume fish white
+					if self.is_white:
+						const = -1
+					else:
+						const = 1
+					if i["type"] == "mate" and i["value"] * const > 0:
+						return False
+					if i["type"] == "cp" and i["value"] * const > -750:
+						return False
+				
+				return True
+		except:
+			return False
 		
 	def update_history(self, reset = False):
 		if reset:
@@ -320,6 +323,7 @@ class main(FloatLayout):
 		self.is_white = not self.is_white
 		self.update_history(reset=True)
 		if not self.is_white:
+			self.evaluate_position()
 			self.fish_move()
 		else:
 			self.set_legal_moves()
@@ -516,6 +520,15 @@ async def command_buy(ctx):
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now level %d! PogChamp" % (ctx.author.name, cur + 1))
 		else:
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, the next level costs %d." % (ctx.author.name, db.get_points(ctx.author.name), cost))
+
+#!song
+
+#!duel
+
+#!commands
+
+#!pgnplay
+
 
 class chessApp(App):
 	def build(self):
