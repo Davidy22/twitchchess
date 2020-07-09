@@ -69,8 +69,9 @@ class main(FloatLayout):
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
-		#self.board.set_fen(self.stats["GAME"]["board"])
-		self.is_white = self.board.turn
+		self.board.set_fen("4r1k1/B4p2/PPPPPPPP/bpbbbpbp/PPPPPPPP/1P2P2P/4q3/6K1 b - - 8 43")
+		self.is_white = False
+		#self.is_white = self.board.turn
 		self.record = db.get_record()
 		self.round = db.get_round_no()
 		
@@ -106,11 +107,27 @@ class main(FloatLayout):
 		Clock.schedule_interval(self.tally, 2)
 		Clock.schedule_interval(self.update_info, 1)
 	
-	def format_text(self, text, font_size = 28):
+	def format_text(self, text, font_size = 27):
 		return "[color=000000][size=%d][b]%s[/b][/size][/color]" % (font_size, text)
 		
 	def evaluate_draw(self):
-		return self.board.has_insufficient_material(not self.is_white)
+		if len(self.board_evaluations) < 4:
+			return False
+			
+		if self.board.has_insufficient_material(not self.is_white):
+			return True
+		for i in self.board_evaluations:
+			#assume fish white
+			if self.is_white:
+				const = -1
+			else:
+				const = 1
+			if i["type"] == "mate" and i["value"] * const > 0:
+				return False
+			if i["type"] == "cp" and not i["value"] == 0:
+				return False
+		
+		return True
 	
 	def evaluate_position(self):
 		try:
@@ -143,6 +160,7 @@ class main(FloatLayout):
 	def update_history(self, reset = False):
 		if reset:
 			self.game_history = chess.pgn.Game()
+			self.game_history.setup(self.board.fen())
 			self.last_game_node = None
 			self.game_history.headers["Event"] = "Twitch plays chess"
 			self.game_history.headers["Site"] = "Twitch.tv"
@@ -180,6 +198,8 @@ class main(FloatLayout):
 					self.info_text += "\nWhite mate in %d" % self.board_evaluations[-1]["value"]
 				else:
 					self.info_text += "\nBlack mate in %d" % (self.board_evaluations[-1]["value"] * -1)
+			elif self.evaluate_draw():
+				self.info_text += "\nFish requesting draw"
 			else:
 				self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
 
@@ -308,7 +328,9 @@ class main(FloatLayout):
 				self.fish.set_skill_level(skill)
 				db.set_level(skill)
 		elif result == "d":
-			self.update_info(text = "You drew", hold = True)
+			for vote in votes:
+				db.change_points(vote, 50)
+			self.update_info(text = "You drew, 50 points awarded to participants", hold = True)
 		else:
 			if skill > 1:
 				skill -= 1
@@ -360,18 +382,29 @@ class main(FloatLayout):
 		self.record = db.get_record()
 			
 	def set_legal_moves(self):
-		global moves
-		global voted
-		global notation_moves
 		moves.clear()
 		notation_moves_temp = {}
 		for move in self.board.legal_moves:
 			temp = set()
+			san = self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")
+			if san in moves:
+				for i in notation_moves_temp:
+					try:
+						notation_moves_temp[i].remove(san)
+						moves.pop(san)
+					except:
+						pass
 			temp.add(move.uci())
-			temp.add(self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","").casefold())
-			temp.add(self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#",""))
+			temp.add(san.casefold())
+			temp.add(san)
+			remove = []
 			for i in temp:
-				moves[i] = 0
+				if not i in moves:
+					moves[i] = 0
+				else:
+					remove.append(i)
+			for i in remove:
+				temp.remove(i)
 			notation_moves_temp[self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")] = temp
 		moves["resign"] = 0
 		notation_moves_temp["resign"] = ["resign"]
@@ -386,7 +419,6 @@ class main(FloatLayout):
 		return val[1]
 	
 	def tally(self, dt):
-		global moves
 		data = []
 		if len(voted.get()) == 0:
 			return
@@ -431,17 +463,23 @@ async def event_message(ctx):
 	await bot.handle_commands(ctx)
 	if ctx.author.name == "twitch_plays_chess_":
 		return
-	global moves
-	global voted
 	# Add move to tally if valid
 	votes = voted.value
 	processed = ctx.content.replace("+", "").replace("#","").casefold()
 	if processed in moves and not (ctx.author.name in votes):
+		ws = bot._ws
+		if processed == "resign" and not db.change_points(ctx.author.name, -5):
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you need 5 points to resign" % ctx.author.name)
+			return
+		
 		if len(votes) == 0:
-			ws = bot._ws
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me The first vote has been cast, a move will be made in 15 seconds")
 		
-		moves[processed] += db.get_player_level(ctx.author.name)
+		if ctx.content in moves:
+			moves[ctx.content] += db.get_player_level(ctx.author.name)
+		else:
+			moves[processed] += db.get_player_level(ctx.author.name)
+		db.change_points(ctx.author.name, 1)
 		votes.add(ctx.author.name)
 		voted.set(votes)
 		t = total_voted.value
@@ -535,7 +573,6 @@ class chessApp(App):
 		return main()
 
 if __name__ == '__main__':
-	# TODO: Replace globals with SQLlite
 	m = Manager()
 	moves = m.dict()
 	notation_moves = m.Value(dict, {})
