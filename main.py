@@ -69,9 +69,9 @@ class main(FloatLayout):
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
-		self.board.set_fen("4r1k1/B4p2/PPPPPPPP/bpbbbpbp/PPPPPPPP/1P2P2P/4q3/6K1 b - - 8 43")
-		self.is_white = False
-		#self.is_white = self.board.turn
+		#self.board.set_fen("4r1k1/B4p2/PPPPPPPP/bpbbbpbp/PPPPPPPP/1P2P2P/4q3/6K1 b - - 8 43")
+		#self.is_white = False
+		self.is_white = self.board.turn
 		self.record = db.get_record()
 		self.round = db.get_round_no()
 		
@@ -270,7 +270,7 @@ class main(FloatLayout):
 		
 		notation_moves_list = notation_moves.get()
 			
-		for move in notation_moves.get():
+		for move in notation_moves_list:
 			temp = 0
 			for i in notation_moves_list[move]:
 				temp += moves[i]
@@ -468,9 +468,10 @@ async def event_message(ctx):
 	processed = ctx.content.replace("+", "").replace("#","").casefold()
 	if processed in moves and not (ctx.author.name in votes):
 		ws = bot._ws
-		if processed == "resign" and not db.change_points(ctx.author.name, -5):
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you need 5 points to resign" % ctx.author.name)
-			return
+		if processed == "resign":
+			if not db.change_points(ctx.author.name, -5):
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you need 5 points to resign" % ctx.author.name)
+				return
 		
 		if len(votes) == 0:
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me The first vote has been cast, a move will be made in 15 seconds")
@@ -558,15 +559,25 @@ async def command_buy(ctx):
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now level %d! PogChamp" % (ctx.author.name, cur + 1))
 		else:
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, the next level costs %d." % (ctx.author.name, db.get_points(ctx.author.name), cost))
+	elif params[0] == "vip":
+		pass
+	elif params[0] == "difficulty":
+		pass
+	elif params[0] == "hill":
+		pass
+	
 
-#!song
+@bot.command(name="song")
+async def command_song(ctx):
+	ws = bot._ws
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Music courtesy of Chilled Cow: https://www.youtube.com/c/chilledcow")
+	
+@bot.command(name="pgnplay")
+async def command_pgnplay(ctx):
+	ws = bot._ws
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Analysis board for viewing PGNs here: https://www.chess.com/analysis")
 
 #!duel
-
-#!commands
-
-#!pgnplay
-
 
 class chessApp(App):
 	def build(self):
