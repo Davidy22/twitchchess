@@ -91,3 +91,28 @@ class conn():
 	def set_level(self, level):
 		self.c.execute('update record set val = ? where field = "level"', (level,))
 		self.conn.commit()
+	
+	def new_game(self):
+		self.c.execute('delete from current')
+		self.c.execute('replace into record select * from next where field = "level"')
+		self.c.execute('delete from next where field = "level"')
+		self.c.execute('insert into current select * from next')
+		self.c.execute('delete from next')
+		self.conn.commit()
+		return self.get_game_params()
+		
+	def get_game_params(self, param = None):
+		if param == None:
+			db = self.c.execute('select * from current').fetchall()
+			if len(db) == 0:
+				return None
+			temp = {}
+			for row in db:
+				temp[row[0]] = row[1]
+			return temp
+		else:
+			return self.c.execute('select val from current where field = ?', (param,)).fetchall()[0][0]
+	
+	def add_game_param(self, name, value):
+		self.c.execute('INSERT INTO next(field, val) VALUES (?, ?)', (name, value))
+		self.conn.commit()

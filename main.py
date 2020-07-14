@@ -78,6 +78,8 @@ class main(FloatLayout):
 		self.fish.set_skill_level(db.get_level())
 		self.fish.depth = "18"
 		
+		self.custom_init()
+		
 		self.update_board()
 		
 		self.move_ranks = kiImage(pos = (140,223))
@@ -92,10 +94,8 @@ class main(FloatLayout):
 		
 		self.game_history = chess.pgn.Game()
 		self.last_game_node = None
-		self.move_history = Label(text = self.format_text("Move history:", font_size = 17), markup = True, text_size = (660, 280), pos = (28000, -120), valign = "top")
 		self.set_legal_moves()
 		self.update_history(reset=True)
-		self.add_widget(self.move_history)
 		
 		self.thinking_label = Label(text = self.format_text("Thinking...", font_size = 65), markup = True, text_size = (1260, 200), pos = (6000, 180), valign = "top")
 		self.add_widget(self.thinking_label)
@@ -150,7 +150,7 @@ class main(FloatLayout):
 						const = 1
 					if i["type"] == "mate" and i["value"] * const > 0:
 						return False
-					if i["type"] == "cp" and i["value"] * const > -750:
+					if i["type"] == "cp" and i["value"] * const > -900:
 						return False
 				
 				return True
@@ -159,6 +159,7 @@ class main(FloatLayout):
 		
 	def update_history(self, reset = False):
 		if reset:
+			c = custom_game.value
 			self.game_history = chess.pgn.Game()
 			self.game_history.setup(self.board.fen())
 			self.last_game_node = None
@@ -166,11 +167,16 @@ class main(FloatLayout):
 			self.game_history.headers["Site"] = "Twitch.tv"
 			self.game_history.headers["Date"] = date.today().strftime("%Y/%m/%d")
 			self.game_history.headers["Round"] = self.round
+			if not c is None and "challenger" in c:
+				opp = c["challenger"]
+			else:
+				opp = "Stockfish %d" % db.get_level()
+			
 			if self.is_white:
 				self.game_history.headers["White"] = "Twitch chat"
-				self.game_history.headers["Black"] = "Stockfish %d" % db.get_level()
+				self.game_history.headers["Black"] = opp
 			else:
-				self.game_history.headers["White"] = "Stockfish %d" % db.get_level()
+				self.game_history.headers["White"] = opp
 				self.game_history.headers["Black"] = "Twitch chat"
 			#self.game_history["Result"]
 		else:
@@ -180,9 +186,9 @@ class main(FloatLayout):
 				self.last_game_node = self.last_game_node.add_main_variation(self.board.move_stack[-1])
 		hist = str(self.game_history.mainline_moves())
 		history.set(hist)
-		self.move_history.text = self.format_text("Move history:\n%s" % hist, font_size = 17)
 		
 	def update_info(self, dt = 0, text = None, hold = False):
+		c = custom_game.value
 		if self.hold_message_ticks > 0:
 			self.hold_message_ticks -= 1
 			return
@@ -190,18 +196,25 @@ class main(FloatLayout):
 			self.hold_message_ticks = 5
 		
 		if text is None:
-			skill = db.get_level()
-			self.info_text = "Opponent: stockfish lvl %d, approx ELO %d" % (skill, int(1000 + skill * 90))
-			
-			if self.board_evaluations[-1]["type"] == "mate":
-				if self.board_evaluations[-1]["value"] > 0:
-					self.info_text += "\nWhite mate in %d" % self.board_evaluations[-1]["value"]
+			if not c is None and "challenger" in c:
+				self.info_text = "Opponent: %s\n" % c["challenger"]
+				if not c["turn"]:
+					self.info_text += "Twitch chat's turn"
 				else:
-					self.info_text += "\nBlack mate in %d" % (self.board_evaluations[-1]["value"] * -1)
-			elif self.evaluate_draw():
-				self.info_text += "\nFish requesting draw"
+					self.info_text += "%s's turn" % c["challenger"]
 			else:
-				self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
+				skill = db.get_level()
+				self.info_text = "Opponent: stockfish lvl %d, approx ELO %d" % (skill, int(1000 + skill * 90))
+			
+				if self.board_evaluations[-1]["type"] == "mate":
+					if self.board_evaluations[-1]["value"] > 0:
+						self.info_text += "\nWhite mate in %d" % self.board_evaluations[-1]["value"]
+					else:
+						self.info_text += "\nBlack mate in %d" % (self.board_evaluations[-1]["value"] * -1)
+				elif self.evaluate_draw():
+					self.info_text += "\nFish requesting draw"
+				else:
+					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
 
 			
 			self.info_text += ", Game %d, W:%d, D:%d, L:%d" % (self.round, self.record[0], self.record[1], self.record[2])
@@ -239,6 +252,12 @@ class main(FloatLayout):
 			pyplot.close()
 
 	def fish_move(self):
+		c = custom_game.value
+		if not c is None and "turn" in c:
+			c["turn"] = not c["turn"]
+			custom_game.set(c)
+			self.set_legal_moves()
+			return
 		if self.evaluate_resign():
 			self.end_game("w")
 			return
@@ -268,7 +287,7 @@ class main(FloatLayout):
 		highmove = None
 		highvote = -1
 		
-		notation_moves_list = notation_moves.get()
+		notation_moves_list = notation_moves.value
 			
 		for move in notation_moves_list:
 			temp = 0
@@ -279,7 +298,14 @@ class main(FloatLayout):
 				highvote = temp
 		
 		if highmove == "resign":
-			self.end_game("l")
+			c = custom_game.value
+			if not c is None and "turn" in c:
+				if c["turn"]:
+					self.end_game("w")
+				else:
+					self.end_game("l")
+			else:
+				self.end_game("l")
 			return
 		elif highmove == "draw":
 			if self.evaluate_draw():
@@ -307,7 +333,14 @@ class main(FloatLayout):
 		elif status == "1/2-1/2":
 			self.end_game("d")
 		else:
-			self.end_game("w")
+			c = custom_game.value
+			if not c is None and "turn" in c:
+				if c["turn"]:
+					self.end_game("l")
+				else:
+					self.end_game("w")
+			else:
+				self.end_game("w")
 		self.counting = False
 		self.lastmove = None
 	
@@ -319,10 +352,16 @@ class main(FloatLayout):
 		skill = db.get_level()
 		self.log(result, skill, votes)
 		if result == "w":
+			c = custom_game.value
+			if not c is None and "challenger" in c:
+				payout = 2000
+			else:
+				payout = skill * 100
+				
 			for vote in votes:
-				db.change_points(vote, skill * 100)
+				db.change_points(vote, payout)
 			
-			self.update_info(text = "Twitch chat won, %d points awarded to participants" % (skill * 100), hold = True)
+			self.update_info(text = "Twitch chat won, %d points awarded to participants" % payout, hold = True)
 			if skill < 20:
 				skill += 1
 				self.fish.set_skill_level(skill)
@@ -331,7 +370,7 @@ class main(FloatLayout):
 			for vote in votes:
 				db.change_points(vote, 50)
 			self.update_info(text = "You drew, 50 points awarded to participants", hold = True)
-		else:
+		else: #TODO: Add prize for challenge winner
 			if skill > 1:
 				skill -= 1
 				self.fish.set_skill_level(skill)
@@ -344,16 +383,34 @@ class main(FloatLayout):
 		self.update_plot(init = True)
 		self.is_white = not self.is_white
 		self.update_history(reset=True)
+		self.custom_init()
 		if not self.is_white:
 			self.evaluate_position()
-			self.fish_move()
+			c = custom_game.value
+			if not c is None and "challenger" in c:
+				self.set_legal_moves()
+			else:
+				self.fish_move()
 		else:
 			self.set_legal_moves()
 		self.counting = False
 		self.evaluate_position()
 		
 		Clock.schedule_once(self.end_game_, 4)
+	
+	def custom_init(self):
+		c = db.new_game()
+		if c is None:
+			custom_game.set(None)
+		# 1 v many
+		if not c is None and "challenger" in c:
+			c["turn"] = not self.is_white
 		
+		# custom board
+		
+		# custom mode
+		custom_game.set(c)
+	
 	def end_game_(self, dt):
 		self.update_board()
 	
@@ -420,10 +477,16 @@ class main(FloatLayout):
 	
 	def tally(self, dt):
 		data = []
-		if len(voted.get()) == 0:
+		if len(voted.value) == 0:
 			return
 		
-		notation_moves_list = notation_moves.get()
+		c = custom_game.value
+		if not c is None and "challenger" in c and c["turn"] and not self.counting:
+			self.counting = True
+			self.player_move(0)
+			return
+		
+		notation_moves_list = notation_moves.value
 		for move in notation_moves_list:
 			temp = 0
 			for i in notation_moves_list[move]:
@@ -463,6 +526,29 @@ async def event_message(ctx):
 	await bot.handle_commands(ctx)
 	if ctx.author.name == "twitch_plays_chess_":
 		return
+	if len(ctx.content) > 10:
+		return
+	
+	# Challenger voting
+	c = custom_game.value
+	if not c is None and "challenger" in c and ctx.author.name == c["challenger"]:
+		if c["turn"]:
+			votes = voted.value
+			processed = ctx.content.replace("+", "").replace("#","").casefold()
+			if processed in moves and not (ctx.author.name in votes):
+				ws = bot._ws
+				
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s has gone with move %s." % (c["challenger"], processed))
+				
+				if ctx.content in moves:
+					moves[ctx.content] += 1
+				else:
+					moves[processed] += 1
+				db.change_points(ctx.author.name, 1)
+				votes.add(ctx.author.name)
+				voted.set(votes)
+		return
+
 	# Add move to tally if valid
 	votes = voted.value
 	processed = ctx.content.replace("+", "").replace("#","").casefold()
@@ -514,6 +600,7 @@ async def command_pgn(ctx):
 		for line in wrap(db.get_game(get_params(ctx.content)[0]), 490):
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % line)
 	else:
+		# TODO: Line wrap this one too
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % history.value)
 
 @bot.command(name="gamble")
@@ -563,9 +650,13 @@ async def command_buy(ctx):
 		pass
 	elif params[0] == "difficulty":
 		pass
-	elif params[0] == "hill":
-		pass
-	
+	elif params[0] == "challenge":
+		# TODO: Add existence check
+		if db.change_points(ctx.author.name, -100000):
+			db.add_game_param("challenger", ctx.author.name)
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s will fight the rest of twitch chat next game. Bring it!" % ctx.author.name)
+		else:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a challenge costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
 
 @bot.command(name="song")
 async def command_song(ctx):
@@ -579,6 +670,27 @@ async def command_pgnplay(ctx):
 
 #!duel
 
+#!give
+@bot.command(name="give")
+async def command_give(ctx):
+	ws = bot._ws
+	params = get_params(ctx.content)
+	if len(params) > 1:
+		name = process_name(params[0])
+		try:
+			amount = int(params[1])
+		except:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid number given.")
+		points = db.get_points(name, no_create = True)
+		if points is None:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid username given.")
+		else:
+			if db.change_points(ctx.author.name, -amount):
+				db.change_points(name, amount)
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s now has %s points." % (name, db.get_points(name)))
+			else:
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You don't have that many points to give DansGame")
+	
 class chessApp(App):
 	def build(self):
 		return main()
@@ -590,6 +702,7 @@ if __name__ == '__main__':
 	voted = m.Value(set, set())
 	total_voted = m.Value(set, set())
 	history = m.Value(str, "")
+	custom_game = m.Value(dict, None)
 	p1 = Process(target=bot.run)
 	p2 = Process(target=chessApp().run)
 	p1.start()
