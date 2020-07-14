@@ -531,23 +531,27 @@ async def event_message(ctx):
 	
 	# Challenger voting
 	c = custom_game.value
-	if not c is None and "challenger" in c and ctx.author.name == c["challenger"]:
+	if not c is None and "challenger" in c:
 		if c["turn"]:
-			votes = voted.value
-			processed = ctx.content.replace("+", "").replace("#","").casefold()
-			if processed in moves and not (ctx.author.name in votes):
-				ws = bot._ws
-				
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s has gone with move %s." % (c["challenger"], processed))
-				
-				if ctx.content in moves:
-					moves[ctx.content] += 1
-				else:
-					moves[processed] += 1
-				db.change_points(ctx.author.name, 1)
-				votes.add(ctx.author.name)
-				voted.set(votes)
-		return
+			if ctx.author.name == c["challenger"]:
+				votes = voted.value
+				processed = ctx.content.replace("+", "").replace("#","").casefold()
+				if processed in moves and not (ctx.author.name in votes):
+					ws = bot._ws
+					
+					await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s has gone with move %s." % (c["challenger"], processed))
+					
+					if ctx.content in moves:
+						moves[ctx.content] += 1
+					else:
+						moves[processed] += 1
+					db.change_points(ctx.author.name, 1)
+					votes.add(ctx.author.name)
+					voted.set(votes)
+			return
+		if ctx.author.name == c["challenger"]:
+			return
+	
 
 	# Add move to tally if valid
 	votes = voted.value
