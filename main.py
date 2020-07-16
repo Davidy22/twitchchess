@@ -745,6 +745,11 @@ async def command_song(ctx):
 	ws = bot._ws
 	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Music courtesy of Chilled Cow: https://www.youtube.com/c/chilledcow")
 	
+@bot.command(name="commands")
+async def command_commands(ctx):
+	ws = bot._ws
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me See about section for full list of commands.")
+	
 @bot.command(name="pgnplay")
 async def command_pgnplay(ctx):
 	ws = bot._ws
