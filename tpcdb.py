@@ -113,6 +113,13 @@ class conn():
 		else:
 			return self.c.execute('select val from current where field = ?', (param,)).fetchall()[0][0]
 	
-	def add_game_param(self, name, value):
-		self.c.execute('INSERT INTO next(field, val) VALUES (?, ?)', (name, value))
+	def add_game_param(self, name, value, replace = False):
+		try:
+			self.c.execute('INSERT INTO next(field, val) VALUES (?, ?)', (name, value))
+		except:
+			if replace:
+				self.c.execute('UPDATE next set val = ? where field = ?', (value, name))
+			else:
+				return False
 		self.conn.commit()
+		return True
