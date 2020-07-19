@@ -65,7 +65,10 @@ class main(FloatLayout):
 		
 		self.render = kiImage(pos = (-350,70))
 		self.add_widget(self.render)
-		self.fish = Stockfish(parameters={"Minimum Thinking Time": 4, "Slow Mover": 10, "Move Overhead": 1})
+		self.fish = Stockfish(parameters={"Minimum Thinking Time": 5000, "Slow Mover": 10})
+		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
+		self.evaluator.set_skill_level(20)
+		self.evaluator.depth = "20"
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
@@ -76,7 +79,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "19"
+		self.fish.depth = "18"
 		
 		self.custom_init()
 		
@@ -131,8 +134,8 @@ class main(FloatLayout):
 	
 	def evaluate_position(self):
 		try:
-			self.fish.set_fen_position(self.board.fen())
-			self.board_evaluations.append(self.fish.get_evaluation())
+			self.evaluator.set_fen_position(self.board.fen())
+			self.board_evaluations.append(self.evaluator.get_evaluation())
 		except:
 			# No eval given on finished games
 			pass
@@ -266,6 +269,7 @@ class main(FloatLayout):
 		if self.evaluate_resign():
 			self.end_game("w")
 			return
+		self.update_plot(init = True)
 		self.thinking_label.pos = (600, 180)
 		Clock.schedule_once(self.fish_move_)
 	
@@ -287,6 +291,7 @@ class main(FloatLayout):
 			self.end_game("l")
 		
 		self.thinking_label.pos = (6000, 180)
+		
 	
 	def player_move(self, dt):
 		pyplot.clf()
@@ -294,7 +299,6 @@ class main(FloatLayout):
 		highvote = -1
 		
 		notation_moves_list = notation_moves.value
-			
 		for move in notation_moves_list:
 			temp = 0
 			for i in notation_moves_list[move]:
@@ -407,6 +411,7 @@ class main(FloatLayout):
 		Clock.schedule_once(self.end_game_, 5)
 	
 	def custom_init(self):
+		self.fish.set_skill_level(db.get_level())
 		c = db.new_game()
 		if c is None:
 			custom_game.set(None)
@@ -467,7 +472,7 @@ class main(FloatLayout):
 						pass
 			temp.add(move.uci())
 			temp.add(san)
-			temp.add(san.strip("=Q").replace("O", "0").casefold())
+			temp.add(rchop(san, "=Q").replace("O", "0").casefold().replace("x",""))
 			temp.add(san.casefold())
 			remove = []
 			for i in temp:
@@ -546,7 +551,7 @@ async def event_message(ctx):
 	
 	# Challenger voting
 	c = custom_game.value
-	processed = ctx.content.replace("+", "").replace("#","").casefold()
+	processed = ctx.content.replace("+", "").replace("#","").casefold().replace("x","")
 	if not c is None and "challenger" in c:
 		if c["turn"]:
 			if ctx.author.name == c["challenger"]:
@@ -704,7 +709,7 @@ async def command_buy(ctx):
 		if b.is_game_over():
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid boardstate given.")
 			return
-		
+		# Add more board checking
 		if None in [b.king(True), b.king(False)]:
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Board must have at least one black and white king.")
 			return

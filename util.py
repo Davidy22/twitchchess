@@ -5,3 +5,8 @@ def get_params(command):
 
 def process_name(x):
 	return x.strip("@").casefold()
+
+def rchop(s, suffix):
+    if suffix and s.endswith(suffix):
+        return s[:-len(suffix)]
+    return s
