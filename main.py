@@ -657,93 +657,98 @@ async def command_gamble(ctx):
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
 
+@bot.command(name="levelup")
+async def command_levelup(ctx):
+	cur = db.get_player_level(ctx.author.name)
+	cost = 500 * pow(10, cur)
+	if db.change_points(ctx.author.name, -cost):
+		db.level_up(ctx.author.name)
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now level %d! PogChamp" % (ctx.author.name, cur + 1))
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, the next level costs %d." % (ctx.author.name, db.get_points(ctx.author.name), cost))
+	
+@bot.command(name="vip")
+async def command_vip(ctx):
+	if db.change_points(ctx.author.name, -100000):
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/vip %s" % ctx.author.name)
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, vip costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
+		
+@bot.command(name="difficulty")
+async def command_difficulty(ctx):
+	params = get_params(ctx.content)
+	try:
+		target = int(params[1])
+	except:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Difficulty needs to be a number from 1-20.")
+		return
+	
+	if target > 20 or target < 1:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Difficulty needs to be a number from 1-20.")
+		return
+	
+	if db.change_points(ctx.author.name, -200):
+		db.add_game_param("level", target, replace = True)
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Stockfish will be set to level %d next game" % target)
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a difficulty change costs 200." % (ctx.author.name, db.get_points(ctx.author.name)))
+		
+@bot.command(name="board")
+async def command_board(ctx):
+	params = get_params(ctx.content)
+	try:
+		# TODO: Add board presets
+		b = chess.Board()
+		b.set_board_fen(params[1])
+	except:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid board fen given.")
+		return
+	
+	if b.is_game_over():
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid boardstate given.")
+		return
+	# TODO: Add more board checking
+	if None in [b.king(True), b.king(False)]:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Board must have at least one black and white king.")
+		return
+	
+	try:
+		color = params[2].casefold()
+	except:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must specify twitch chat's color.")
+		return
+	
+	if color in ["w", "white"]:
+		color_target = "w"
+	elif color in ["b", "black"]:
+		color_target = "b"
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid color, choose white or black.")
+		return
+		
+	
+	if db.change_points(ctx.author.name, -500):
+		db.add_game_param("board", params[1], replace = True)
+		db.add_game_param("color", color_target, replace = True)
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Custom starting board set for next game.")
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a custom start costs 500." % (ctx.author.name, db.get_points(ctx.author.name)))
+		
+@bot.command(name="challenge")
+async def command_challenge(ctx):
+	# TODO: Add existence check
+	if db.change_points(ctx.author.name, -100000):
+		db.add_game_param("challenger", ctx.author.name)
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s will fight the rest of twitch chat next game. Bring it!" % ctx.author.name)
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a challenge costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
+
 @bot.command(name="buy")
 async def command_buy(ctx):
 	# Make flexible, add more
 	ws = bot._ws
-	params = get_params(ctx.content)
-	
-	if len(params) == 0:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Shop options are: level, vip, difficulty, board, challenge")
-		return
-		
-	if params[0] == "level":
-		cur = db.get_player_level(ctx.author.name)
-		cost = 500 * pow(10, cur)
-		if db.change_points(ctx.author.name, -cost):
-			db.level_up(ctx.author.name)
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now level %d! PogChamp" % (ctx.author.name, cur + 1))
-		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, the next level costs %d." % (ctx.author.name, db.get_points(ctx.author.name), cost))
-	elif params[0] == "vip":
-		if db.change_points(ctx.author.name, -100000):
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/vip %s" % ctx.author.name)
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
-		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, vip costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
-	elif params[0] == "difficulty":
-		try:
-			target = int(params[1])
-		except:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Difficulty needs to be a number from 1-20.")
-			return
-		
-		if target > 20 or target < 1:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Difficulty needs to be a number from 1-20.")
-			return
-		
-		if db.change_points(ctx.author.name, -200):
-			db.add_game_param("level", target, replace = True)
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Stockfish will be set to level %d next game" % target)
-		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a difficulty change costs 200." % (ctx.author.name, db.get_points(ctx.author.name)))
-	elif params[0] == "board":
-		try:
-			# Add board presets
-			b = chess.Board()
-			b.set_board_fen(params[1])
-		except:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid board fen given.")
-			return
-		
-		if b.is_game_over():
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid boardstate given.")
-			return
-		# Add more board checking
-		if None in [b.king(True), b.king(False)]:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Board must have at least one black and white king.")
-			return
-		
-		try:
-			color = params[2].casefold()
-		except:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must specify twitch chat's color.")
-			return
-		
-		if color in ["w", "white"]:
-			color_target = "w"
-		elif color in ["b", "black"]:
-			color_target = "b"
-		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid color, choose white or black.")
-			return
-			
-		
-		if db.change_points(ctx.author.name, -500):
-			db.add_game_param("board", params[1], replace = True)
-			db.add_game_param("color", color_target, replace = True)
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Custom starting board set for next game.")
-		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a custom start costs 500." % (ctx.author.name, db.get_points(ctx.author.name)))
-	elif params[0] == "challenge":
-		# TODO: Add existence check
-		if db.change_points(ctx.author.name, -100000):
-			db.add_game_param("challenger", ctx.author.name)
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s will fight the rest of twitch chat next game. Bring it!" % ctx.author.name)
-		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a challenge costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
-	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid shop option.")
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Shop options are: level, vip, difficulty, board, challenge")
 
 @bot.command(name="song")
 async def command_song(ctx):
