@@ -41,7 +41,6 @@ bot = commands.Bot(
 		initial_channels=[secrets['DEFAULT']['channel']]
 	)
 
-
 class main(FloatLayout):
 	def __init__(self, **kwargs):
 		super(main, self).__init__(**kwargs)
@@ -533,8 +532,7 @@ class main(FloatLayout):
 			Clock.schedule_once(self.player_move, 15)
 			self.countdown = 15
 			self.counting = True
-			
-		
+
 @bot.event
 async def event_ready():
 	print(f"{secrets['DEFAULT']['nick']} is online!")
@@ -616,8 +614,8 @@ async def command_points(ctx):
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you have %s points." % (ctx.author.name, db.get_points(ctx.author.name)))
 
-@bot.command(name="pgn")
-async def command_pgn(ctx):
+@bot.command(name="log")
+async def command_log(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
 	if len(params) > 0:
@@ -667,7 +665,7 @@ async def command_levelup(ctx):
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now level %d! PogChamp" % (ctx.author.name, cur + 1))
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, the next level costs %d." % (ctx.author.name, db.get_points(ctx.author.name), cost))
-	
+
 @bot.command(name="vip")
 async def command_vip(ctx):
 	ws = bot._ws
@@ -676,13 +674,13 @@ async def command_vip(ctx):
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, vip costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
-		
+
 @bot.command(name="difficulty")
 async def command_difficulty(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
 	try:
-		target = int(params[1])
+		target = int(params[0])
 	except:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Difficulty needs to be a number from 1-20.")
 		return
@@ -696,7 +694,7 @@ async def command_difficulty(ctx):
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Stockfish will be set to level %d next game" % target)
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a difficulty change costs 200." % (ctx.author.name, db.get_points(ctx.author.name)))
-		
+
 @bot.command(name="board")
 async def command_board(ctx):
 	ws = bot._ws
@@ -704,7 +702,7 @@ async def command_board(ctx):
 	try:
 		# TODO: Add board presets
 		b = chess.Board()
-		b.set_board_fen(params[1])
+		b.set_board_fen(params[0])
 	except:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid board fen given.")
 		return
@@ -718,7 +716,7 @@ async def command_board(ctx):
 		return
 	
 	try:
-		color = params[2].casefold()
+		color = params[1].casefold()
 	except:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must specify twitch chat's color.")
 		return
@@ -737,7 +735,7 @@ async def command_board(ctx):
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Custom starting board set for next game.")
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a custom start costs 500." % (ctx.author.name, db.get_points(ctx.author.name)))
-		
+
 @bot.command(name="challenge")
 async def command_challenge(ctx):
 	ws = bot._ws
@@ -758,12 +756,12 @@ async def command_shop(ctx):
 async def command_song(ctx):
 	ws = bot._ws
 	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Music courtesy of Chilled Cow: https://www.youtube.com/c/chilledcow")
-	
+
 @bot.command(name="commands")
 async def command_commands(ctx):
 	ws = bot._ws
 	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me See about section for full list of commands.")
-	
+
 @bot.command(name="pgnplay")
 async def command_pgnplay(ctx):
 	ws = bot._ws
@@ -788,7 +786,7 @@ async def command_give(ctx):
 				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s now has %s points." % (name, db.get_points(name)))
 			else:
 				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You don't have that many points to give DansGame")
-	
+
 class chessApp(App):
 	def build(self):
 		return main()
