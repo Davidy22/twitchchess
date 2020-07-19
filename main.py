@@ -65,8 +65,8 @@ class main(FloatLayout):
 		
 		self.render = kiImage(pos = (-350,70))
 		self.add_widget(self.render)
-		self.fish = Stockfish(parameters={"Minimum Thinking Time": 5000, "Slow Mover": 10})
-		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
+		self.fish = Stockfish("./stockfish", parameters={"Minimum Thinking Time": 5000, "Slow Mover": 10})
+		self.evaluator = Stockfish("./stockfish", parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
 		self.evaluator.depth = "20"
 		self.board = chess.Board()
