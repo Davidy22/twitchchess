@@ -65,8 +65,8 @@ class main(FloatLayout):
 		
 		self.render = kiImage(pos = (-350,70))
 		self.add_widget(self.render)
-		self.fish = Stockfish("./stockfish", parameters={"Minimum Thinking Time": 5000, "Slow Mover": 10})
-		self.evaluator = Stockfish("./stockfish", parameters={"Minimum Thinking Time": 5})
+		self.fish = Stockfish(parameters={"Minimum Thinking Time": 5000, "Slow Mover": 10})
+		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
 		self.evaluator.depth = "20"
 		self.board = chess.Board()
@@ -659,6 +659,7 @@ async def command_gamble(ctx):
 
 @bot.command(name="levelup")
 async def command_levelup(ctx):
+	ws = bot._ws
 	cur = db.get_player_level(ctx.author.name)
 	cost = 500 * pow(10, cur)
 	if db.change_points(ctx.author.name, -cost):
@@ -669,6 +670,7 @@ async def command_levelup(ctx):
 	
 @bot.command(name="vip")
 async def command_vip(ctx):
+	ws = bot._ws
 	if db.change_points(ctx.author.name, -100000):
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/vip %s" % ctx.author.name)
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
@@ -677,6 +679,7 @@ async def command_vip(ctx):
 		
 @bot.command(name="difficulty")
 async def command_difficulty(ctx):
+	ws = bot._ws
 	params = get_params(ctx.content)
 	try:
 		target = int(params[1])
@@ -696,6 +699,7 @@ async def command_difficulty(ctx):
 		
 @bot.command(name="board")
 async def command_board(ctx):
+	ws = bot._ws
 	params = get_params(ctx.content)
 	try:
 		# TODO: Add board presets
@@ -727,7 +731,6 @@ async def command_board(ctx):
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid color, choose white or black.")
 		return
 		
-	
 	if db.change_points(ctx.author.name, -500):
 		db.add_game_param("board", params[1], replace = True)
 		db.add_game_param("color", color_target, replace = True)
@@ -737,6 +740,7 @@ async def command_board(ctx):
 		
 @bot.command(name="challenge")
 async def command_challenge(ctx):
+	ws = bot._ws
 	# TODO: Add existence check
 	if db.change_points(ctx.author.name, -100000):
 		db.add_game_param("challenger", ctx.author.name)
@@ -744,11 +748,11 @@ async def command_challenge(ctx):
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a challenge costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
 
-@bot.command(name="buy")
-async def command_buy(ctx):
+@bot.command(name="shop")
+async def command_shop(ctx):
 	# Make flexible, add more
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Shop options are: level, vip, difficulty, board, challenge")
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Buy commands: levelup, vip, difficulty, board, challenge")
 
 @bot.command(name="song")
 async def command_song(ctx):
@@ -764,8 +768,6 @@ async def command_commands(ctx):
 async def command_pgnplay(ctx):
 	ws = bot._ws
 	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PGN viewer and FEN editor here: https://www.chess.com/analysis")
-
-#!duel
 
 @bot.command(name="give")
 async def command_give(ctx):
