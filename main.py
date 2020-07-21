@@ -486,7 +486,7 @@ class main(FloatLayout):
 		notation_moves_temp["resign"] = ["resign"]
 		moves["draw"] = 0
 		notation_moves_temp["draw"] = ["draw"]
-		self.moves_string = self.format_text("Legal moves, type in chat to vote. UCI ok, eg. a2a4:\n" + ", ".join(notation_moves_temp))
+		self.moves_string = self.format_text("Legal moves, type in chat to vote. UCI ok (eg. a2a4). Type !notation for notation guide:\n" + ", ".join(notation_moves_temp))
 		self.move_options.text = self.moves_string
 		voted.set(set())
 		notation_moves.set(notation_moves_temp)
@@ -558,7 +558,7 @@ async def event_message(ctx):
 				if processed in moves and not (ctx.author.name in votes):
 					ws = bot._ws
 					
-					await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s has gone with move %s." % (c["challenger"], processed))
+					await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s has gone with move %s." % (c["challenger"], ctx.content))
 					
 					if ctx.content in moves:
 						moves[ctx.content] += 1
@@ -730,7 +730,7 @@ async def command_board(ctx):
 		return
 		
 	if db.change_points(ctx.author.name, -500):
-		db.add_game_param("board", params[1], replace = True)
+		db.add_game_param("board", params[0], replace = True)
 		db.add_game_param("color", color_target, replace = True)
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Custom starting board set for next game.")
 	else:
