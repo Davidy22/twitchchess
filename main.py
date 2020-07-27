@@ -64,7 +64,7 @@ class main(FloatLayout):
 		
 		self.render = kiImage(pos = (-350,70))
 		self.add_widget(self.render)
-		self.fish = Stockfish(parameters={"Minimum Thinking Time": 5000, "Slow Mover": 10})
+		self.fish = Stockfish(parameters={"Minimum Thinking Time": 8000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
 		self.evaluator.depth = "20"
@@ -78,7 +78,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "18"
+		self.fish.depth = "20"
 		
 		self.custom_init()
 		
@@ -365,7 +365,7 @@ class main(FloatLayout):
 				if "challenger" in c:
 					payout = 2000
 				elif "board" in c:
-					payout = skill * 50
+					payout = skill * 25
 			else:
 				payout = skill * 100
 				
@@ -655,6 +655,48 @@ async def command_gamble(ctx):
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
 
+@bot.command(name="roll")
+async def command_roll(ctx):
+	ws = bot._ws
+	params = get_params(ctx.content)
+	if len(params) > 0:
+		if params[0] == "all":
+			delta = db.get_points(ctx.author.name)
+		else:
+			try:
+				delta = int(params[0])
+			except:
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
+				return
+		
+		if delta < 69:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Minimum gamble amount is 69")
+			return
+		
+		if db.change_points(ctx.author.name, -delta):
+			result = random.randrange(1,101)
+			if result <= 60:
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s wagered %d points and rolled %d. Better luck next time :(" % (ctx.author.name, delta, result))
+			elif result <= 90:
+				db.change_points(ctx.author.name, delta * 2)
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp %s rolled %d. They won %d points for rolling above 60 PogChamp" % (ctx.author.name, result, delta * 2))
+			elif result <= 95:
+				db.change_points(ctx.author.name, delta * 3)
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Kreygasm %s rolled %d. They won %d points for rolling above 90 Kreygasm" % (ctx.author.name, result, delta * 3))
+			elif result <= 99:
+				db.change_points(ctx.author.name, delta * 4)
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp Kreygasm %s rolled %d. They won %d points for rolling above 95 Kreygasm PogChamp" % (ctx.author.name, result, delta * 4))
+			elif result == 100:
+				db.change_points(ctx.author.name, delta * 10)
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp PogChamp PogChamp %s rolled 100! They win a jackpot of %s points! PogChamp PogChamp PogChamp" % (ctx.author.name, delta * 10))
+			
+				
+		else:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points." % (ctx.author.name, db.get_points(ctx.author.name)))
+			
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
+
 @bot.command(name="levelup")
 async def command_levelup(ctx):
 	ws = bot._ws
@@ -775,18 +817,78 @@ async def command_give(ctx):
 		name = process_name(params[0])
 		try:
 			amount = int(params[1])
+			if amount == 0:
+				return
 		except:
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid number given.")
 		points = db.get_points(name, no_create = True)
 		if points is None:
 			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid username given.")
 		else:
+			
 			if db.change_points(ctx.author.name, -amount):
 				db.change_points(name, amount)
 				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s now has %s points." % (name, db.get_points(name)))
 			else:
 				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You don't have that many points to give DansGame")
 
+
+@bot.command(name="duel")
+async def command_duel(ctx):
+	ws = bot._ws
+	params = get_params(ctx.content)
+	try:
+		victim = process_name(params[0])
+	except:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Name a person to duel and the number of points you want to wager")
+		return
+		
+	try:
+		amount = int(params[1])
+	except:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must provide a number to wager")
+		return
+	
+	if amount < 69:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must wager at least 69 points")
+		return
+	
+	if db.get_points(ctx.author.name, no_create = True) >= amount and db.get_points(victim, no_create = True) >= amount:
+		if db.challenge(ctx.author.name, victim, amount):
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, %s wants to duel you for %d points. !accept or !reject, duel expires in 15 minutes." % (victim, ctx.author.name, amount))
+		else:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Each person can have at most one outgoing and one incoming challenge")
+	else:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You both need to have enough points to wager")
+
+@bot.command(name="accept")
+async def command_accept(ctx):
+	ws = bot._ws
+	result = db.accept_challenge(ctx.author.name)
+	if not result is None:
+		if db.get_points(result[0]) < result[2]:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s does not have enough points for the duel right now" % result[0])
+			return
+		if db.get_points(result[1]) < result[2]:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s does not have enough points for the duel right now" % result[1])
+			return
+
+		if random.choice([True, False]):
+			db.change_points(result[0], result[2])
+			db.change_points(result[1], -result[2])
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s won the duel with %s and took %d of their lunch money!" % (result[0], result[1], result[2]))
+		else:
+			db.change_points(result[0], -result[2])
+			db.change_points(result[1], result[2])
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s won the duel with %s and took %d of their lunch money!" % (result[1], result[0], result[2]))
+		db.delete_challenge(ctx.author.name)
+
+@bot.command(name="reject")
+async def command_reject(ctx):
+	ws = bot._ws
+	db.delete_challenge(ctx.author.name)
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Duel declined")
+	
 class chessApp(App):
 	def build(self):
 		return main()

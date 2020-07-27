@@ -1,9 +1,9 @@
 import sqlite3
-
+import datetime
 
 class conn():
 	def __init__(self):
-		self.conn = sqlite3.connect("tpp.db")
+		self.conn = sqlite3.connect("tpp.db", detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 		self.c = self.conn.cursor()
 		
 	def get_points(self, username, no_create = False):
@@ -123,3 +123,35 @@ class conn():
 				return False
 		self.conn.commit()
 		return True
+	
+	def challenge(self, challenger, victim, amount):
+		try:
+			result = self.c.execute('select timestamp from challenges where victim = ?', (victim,)).fetchall()[0][0]
+			if (datetime.datetime.now() - result).seconds > 900:
+				self.reject_challenge(victim)
+			else:
+				return False
+		except:
+			pass
+		try:
+			self.c.execute('insert into challenges(challenger,victim,amount,timestamp) Values (?, ?, ?, ?)', (challenger, victim, amount, datetime.datetime.now()))
+			self.conn.commit()
+			return True
+		except:
+			return False
+	
+	def accept_challenge(self, victim):
+		try:
+			result = self.c.execute('select challenger,victim,amount,timestamp from challenges where victim = ?', (victim,)).fetchall()[0]
+			if (datetime.datetime.now() - result[3]).seconds > 900:
+				self.reject_challenge(victim)
+				return None
+			
+			return result
+		except:
+			return None
+			
+		
+	def delete_challenge(self, victim):
+		self.c.execute('delete from challenges where victim = ?', (victim,))
+		self.conn.commit()

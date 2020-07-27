@@ -20,3 +20,11 @@ for i in a["DEFAULT"]:
 
 conn.commit()
 conn.close()
+
+CREATE TABLE `challenges` (
+	`challenger`	TEXT NOT NULL UNIQUE,
+	`victim`	TEXT NOT NULL UNIQUE,
+	`amount`	INTEGER NOT NULL,
+	`timestamp`	TIMESTAMP NOT NULL,
+	PRIMARY KEY(`victim`)
+);
