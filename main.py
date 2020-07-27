@@ -62,7 +62,7 @@ class main(FloatLayout):
 		#temp = open("game.log")
 		#self.stats.read_file(temp)
 		
-		self.render = kiImage(pos = (-350,70))
+		self.render = kiImage(pos = (-280,0), height=700, allow_stretch = True)
 		self.add_widget(self.render)
 		self.fish = Stockfish(parameters={"Minimum Thinking Time": 8000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
@@ -84,14 +84,14 @@ class main(FloatLayout):
 		
 		self.update_board()
 		
-		self.move_ranks = kiImage(pos = (140,223))
+		self.move_ranks = kiImage(pos = (210,223))
 		self.add_widget(self.move_ranks)
 		
 		self.info_text = "Stockfish level: %d" % db.get_level()
-		self.info = Label(text = self.info_text, size_hint_y = 1, size_hint_x = 1, markup = True, text_size = (660, 100), pos = (280, 45), valign = "top")
+		self.info = Label(text = self.info_text, size_hint_y = 1, size_hint_x = 1, markup = True, text_size = (545, 100), pos = (362, 45), valign = "top")
 		self.add_widget(self.info)
 		
-		self.move_options = Label(text = self.moves_string, markup = True, text_size = (1260, 200), pos = (2, -317), valign = "top")
+		self.move_options = Label(text = self.moves_string, markup = True, text_size = (545, 500), pos = (362, -317), valign = "top")
 		self.add_widget(self.move_options)
 		
 		self.game_history = chess.pgn.Game()
@@ -99,7 +99,7 @@ class main(FloatLayout):
 		self.set_legal_moves()
 		self.update_history(reset=True)
 		
-		self.thinking_label = Label(text = self.format_text("Thinking...", font_size = 65), markup = True, text_size = (1260, 200), pos = (6000, 180), valign = "top")
+		self.thinking_label = Label(text = self.format_text("Thinking...", font_size = 45), markup = True, text_size = (1260, 200), pos = (73500, 160), valign = "top")
 		self.add_widget(self.thinking_label)
 		
 		self.countdown = False
@@ -244,7 +244,7 @@ class main(FloatLayout):
 		
 	def update_plot(self, init = False):
 		if init:
-			pyplot.figure(figsize = (5,3))
+			pyplot.figure(figsize = (3,3))
 			pyplot.bar([], [], align='center', alpha=0.5, width=1.0)
 			pyplot.xticks([], [])
 			pyplot.gca().axes.get_yaxis().set_visible(False)
@@ -269,7 +269,7 @@ class main(FloatLayout):
 			self.end_game("w")
 			return
 		self.update_plot(init = True)
-		self.thinking_label.pos = (600, 180)
+		self.thinking_label.pos = (735, 180)
 		Clock.schedule_once(self.fish_move_)
 	
 	def fish_move_(self, dt):
@@ -486,7 +486,7 @@ class main(FloatLayout):
 		notation_moves_temp["resign"] = ["resign"]
 		moves["draw"] = 0
 		notation_moves_temp["draw"] = ["draw"]
-		self.moves_string = self.format_text("Legal moves, type in chat to vote. UCI ok (eg. a2a4). Type !notation for notation guide:\n" + ", ".join(notation_moves_temp))
+		self.moves_string = self.format_text("Legal moves, type in chat to vote (!notation):\n" + ", ".join(notation_moves_temp))
 		self.move_options.text = self.moves_string
 		voted.set(set())
 		notation_moves.set(notation_moves_temp)
@@ -515,12 +515,12 @@ class main(FloatLayout):
 		data.sort(key=self.tally_count, reverse = True)
 		labels = []
 		quantity = []
-		for i in data[:7]:
+		for i in data[:6]:
 			labels.append(i[0])
 			quantity.append(i[1])
 			
 		y = np.arange(len(labels))
-		pyplot.figure(figsize = (5,3))
+		pyplot.figure(figsize = (3,3))
 		pyplot.bar(y, quantity, align='center', alpha=0.5, width=1.0)
 		pyplot.xticks(y, labels)
 		pyplot.ylim(ymin=0, ymax=quantity[0])
@@ -679,16 +679,16 @@ async def command_roll(ctx):
 				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s wagered %d points and rolled %d. Better luck next time :(" % (ctx.author.name, delta, result))
 			elif result <= 90:
 				db.change_points(ctx.author.name, delta * 2)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp %s rolled %d. They won %d points for rolling above 60 PogChamp" % (ctx.author.name, result, delta * 2))
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp %s rolled %d. They won %d points for rolling above 60, now they have %d points PogChamp" % (ctx.author.name, result, delta * 2, db.get_points(ctx.author.name)))
 			elif result <= 95:
 				db.change_points(ctx.author.name, delta * 3)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Kreygasm %s rolled %d. They won %d points for rolling above 90 Kreygasm" % (ctx.author.name, result, delta * 3))
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Kreygasm %s rolled %d. They won %d points for rolling above 90, now they have %d points Kreygasm" % (ctx.author.name, result, delta * 3, db.get_points(ctx.author.name)))
 			elif result <= 99:
 				db.change_points(ctx.author.name, delta * 4)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp Kreygasm %s rolled %d. They won %d points for rolling above 95 Kreygasm PogChamp" % (ctx.author.name, result, delta * 4))
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp Kreygasm %s rolled %d. They won %d points for rolling above 95, now they have %d points Kreygasm PogChamp" % (ctx.author.name, result, delta * 4, db.get_points(ctx.author.name)))
 			elif result == 100:
 				db.change_points(ctx.author.name, delta * 10)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp PogChamp PogChamp %s rolled 100! They win a jackpot of %s points! PogChamp PogChamp PogChamp" % (ctx.author.name, delta * 10))
+				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp PogChamp PogChamp %s rolled 100! They win a jackpot of %s points! They now have %d points PogChamp PogChamp PogChamp" % (ctx.author.name, delta * 10, db.get_points(ctx.author.name)))
 			
 				
 		else:
@@ -887,7 +887,6 @@ async def command_accept(ctx):
 async def command_reject(ctx):
 	ws = bot._ws
 	db.delete_challenge(ctx.author.name)
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Duel declined")
 	
 class chessApp(App):
 	def build(self):
