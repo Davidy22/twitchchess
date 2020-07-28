@@ -821,7 +821,7 @@ async def command_song(ctx):
 @bot.command(name="commands")
 async def command_commands(ctx):
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me See about section for full list of commands.")
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me See about section below the stream for full list of commands.")
 
 @bot.command(name="pgnplay")
 async def command_pgnplay(ctx):
@@ -905,11 +905,6 @@ async def command_accept(ctx):
 @bot.command(name="reject")
 async def command_reject(ctx):
 	db.delete_challenge(ctx.author.name)
-	
-@bot.command(name="commands")
-async def command_commands(ctx):
-	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Full list of commands in the about section below the stream")
 	
 class chessApp(App):
 	def build(self):
