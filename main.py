@@ -904,8 +904,12 @@ async def command_accept(ctx):
 
 @bot.command(name="reject")
 async def command_reject(ctx):
-	ws = bot._ws
 	db.delete_challenge(ctx.author.name)
+	
+@bot.command(name="commands")
+async def command_commands(ctx):
+	ws = bot._ws
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Full list of commands in the about section below the stream")
 	
 class chessApp(App):
 	def build(self):
