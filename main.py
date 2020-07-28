@@ -655,6 +655,25 @@ async def command_gamble(ctx):
 	else:
 		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
 
+@bot.command(name="rob")
+async def command_rob(ctx):
+	ws = bot._ws
+		
+	current = db.get_points(ctx.author.name)
+	if current < 100:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You wouldn't have enough points to pay bail, you need at least 100.")
+		return
+	
+	delta = int(current / 100) * random.randrange(2,15)
+	
+	result = random.randrange(10)
+	if result == 0:
+		db.change_points(ctx.author.name, delta * 10)
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me SirSword %s robbed the bank for %d points! SirMad They now have %d points. SirPrise" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
+	else:
+		db.change_points(ctx.author.name, -delta)
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s got caught trying to rob a bank. NotLikeThis They had to pay %d points in bail." % (ctx.author.name, delta))
+
 @bot.command(name="roll")
 async def command_roll(ctx):
 	ws = bot._ws
