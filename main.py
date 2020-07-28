@@ -486,7 +486,7 @@ class main(FloatLayout):
 		notation_moves_temp["resign"] = ["resign"]
 		moves["draw"] = 0
 		notation_moves_temp["draw"] = ["draw"]
-		self.moves_string = self.format_text("Legal moves, type in chat to vote (!notation):\n" + ", ".join(notation_moves_temp))
+		self.moves_string = self.format_text("Legal moves, type in chat to vote:\n" + ", ".join(notation_moves_temp))
 		self.move_options.text = self.moves_string
 		voted.set(set())
 		notation_moves.set(notation_moves_temp)
