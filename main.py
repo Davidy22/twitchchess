@@ -64,7 +64,7 @@ class main(FloatLayout):
 		
 		self.render = kiImage(pos = (-280,0), height=700, allow_stretch = True)
 		self.add_widget(self.render)
-		self.fish = Stockfish(parameters={"Minimum Thinking Time": 8000, "Slow Mover": 10})
+		self.fish = Stockfish(parameters={"Minimum Thinking Time": 6000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
 		self.evaluator.depth = "20"

@@ -128,7 +128,7 @@ class conn():
 		try:
 			result = self.c.execute('select timestamp from challenges where victim = ?', (victim,)).fetchall()[0][0]
 			if (datetime.datetime.now() - result).seconds > 900:
-				self.reject_challenge(victim)
+				self.delete_challenge(victim)
 			else:
 				return False
 		except:
@@ -144,7 +144,7 @@ class conn():
 		try:
 			result = self.c.execute('select challenger,victim,amount,timestamp from challenges where victim = ?', (victim,)).fetchall()[0]
 			if (datetime.datetime.now() - result[3]).seconds > 900:
-				self.reject_challenge(victim)
+				self.delete_challenge(victim)
 				return None
 			
 			return result
