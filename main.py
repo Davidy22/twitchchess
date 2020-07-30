@@ -211,7 +211,11 @@ class main(FloatLayout):
 					self.info_text += "%s's turn" % c["challenger"]
 			else:
 				skill = db.get_level()
-				self.info_text = "Opponent: Stockfish lvl %d, approx ELO %d" % (skill, int(1000 + skill * 90))
+				if self.is_white:
+					opp_color = "black"
+				else:
+					opp_color = "white"
+				self.info_text = "Opponent: Stockfish lvl %d is %s, ELO %d~" % (skill, opp_color, int(1000 + skill * 90))
 			
 				if self.board_evaluations[-1]["type"] == "mate":
 					if self.board_evaluations[-1]["value"] > 0:
@@ -425,6 +429,8 @@ class main(FloatLayout):
 		
 		if "color" in c:
 			self.is_white = (c["color"] == "w")
+			self.board.turn = self.is_white
+			
 		
 		# custom mode
 		custom_game.set(c)
@@ -457,8 +463,11 @@ class main(FloatLayout):
 		self.record = db.get_record()
 			
 	def set_legal_moves(self):
+		print(self.is_white)
 		moves.clear()
 		notation_moves_temp = {}
+		count = 1
+		movelist = None
 		for move in self.board.legal_moves:
 			temp = set()
 			san = self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")
@@ -473,6 +482,13 @@ class main(FloatLayout):
 			temp.add(san)
 			temp.add(rchop(san, "=Q").replace("O", "0").casefold().replace("x",""))
 			temp.add(san.casefold())
+			temp.add("-%d" % count)
+			if movelist is None:
+				movelist = "(1)%s" % san
+			else:
+				movelist += " (%d)%s" % (count, san)
+			
+			count += 1
 			remove = []
 			for i in temp:
 				if not i in moves:
@@ -481,12 +497,14 @@ class main(FloatLayout):
 					remove.append(i)
 			for i in remove:
 				temp.remove(i)
-			notation_moves_temp[self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")] = temp
+			notation_moves_temp[san] = temp
 		moves["resign"] = 0
-		notation_moves_temp["resign"] = ["resign"]
+		moves["-0"] = 0
+		notation_moves_temp["resign"] = ["resign", "-0"]
 		moves["draw"] = 0
-		notation_moves_temp["draw"] = ["draw"]
-		self.moves_string = self.format_text("Legal moves, type in chat to vote:\n" + ", ".join(notation_moves_temp))
+		moves["-00"] = 0
+		notation_moves_temp["draw"] = ["draw", "-00"]		
+		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or -1:\n" % list(notation_moves_temp)[0], font_size = 24) + self.format_text(movelist + " (0)resign (00)draw", font_size=23)
 		self.move_options.text = self.moves_string
 		voted.set(set())
 		notation_moves.set(notation_moves_temp)
@@ -598,7 +616,7 @@ async def event_message(ctx):
 @bot.command(name="notation")
 async def command_notation(ctx):
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/. You can also type your moves as the starting square followed by the ending square, eg. a4a6, b1d3")
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/. You can also type your moves as the starting square followed by the ending square, eg. a4a6, b1d3. You can also type the number before to the move you want from the list on-screen, preceded by a - (-3, -12, etc)")
 
 @bot.command(name="points")
 async def command_points(ctx):
@@ -660,11 +678,11 @@ async def command_rob(ctx):
 	ws = bot._ws
 		
 	current = db.get_points(ctx.author.name)
-	if current < 100:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You wouldn't have enough points to pay bail, you need at least 100.")
+	if current < 200:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You wouldn't have enough points to pay bail, you need at least 200.")
 		return
 	
-	delta = int(current / 100) * random.randrange(2,15)
+	delta = random.randrange(100,200)
 	
 	result = random.randrange(10)
 	if result == 0:
