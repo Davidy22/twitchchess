@@ -203,18 +203,18 @@ class main(FloatLayout):
 			self.hold_message_ticks = 5
 		
 		if text is None:
+			if self.is_white:
+				opp_color = "black"
+			else:
+				opp_color = "white"
 			if not c is None and "challenger" in c:
-				self.info_text = "Opponent: %s\n" % c["challenger"]
+				self.info_text = "Opponent: %s is %s\n" % (c["challenger"], opp_color)
 				if not c["turn"]:
 					self.info_text += "Twitch chat's turn"
 				else:
 					self.info_text += "%s's turn" % c["challenger"]
 			else:
 				skill = db.get_level()
-				if self.is_white:
-					opp_color = "black"
-				else:
-					opp_color = "white"
 				self.info_text = "Opponent: Stockfish lvl %d is %s, ELO %d~" % (skill, opp_color, int(1000 + skill * 90))
 			
 				if self.board_evaluations[-1]["type"] == "mate":
@@ -291,10 +291,13 @@ class main(FloatLayout):
 			self.end_game("d")
 		else:
 			#pause before ending game
-			self.end_game("l")
+			self.set_legal_moves()
+			Clock.schedule_once(self.fish_move__, 3)
 		
 		self.thinking_label.pos = (6000, 180)
-		
+	
+	def fish_move__(self, dt):
+		self.end_game("l")
 	
 	def player_move(self, dt):
 		pyplot.clf()
@@ -416,9 +419,17 @@ class main(FloatLayout):
 	def custom_init(self):
 		self.fish.set_skill_level(db.get_level())
 		c = db.new_game()
+		vis = visiting.value
+		if not vis is None:
+			if c is None:
+				c = {"challenger":vis}
+			else:
+				c["challenger"] = vis
+			
 		if c is None:
 			custom_game.set(None)
 			return
+		
 		# 1 v many
 		if "challenger" in c:
 			c["turn"] = not self.is_white
@@ -463,11 +474,18 @@ class main(FloatLayout):
 		self.record = db.get_record()
 			
 	def set_legal_moves(self):
-		print(self.is_white)
 		moves.clear()
 		notation_moves_temp = {}
 		count = 1
 		movelist = None
+		legal = list(self.board.legal_moves)
+		if len(legal) == 0:
+			self.moves_string = self.format_text("Game is over, no legal moves", font_size=30)
+			self.move_options.text = self.moves_string
+			voted.set(set())
+			notation_moves.set({})
+			return
+		
 		for move in self.board.legal_moves:
 			temp = set()
 			san = self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")
@@ -482,7 +500,7 @@ class main(FloatLayout):
 			temp.add(san)
 			temp.add(rchop(san, "=Q").replace("O", "0").casefold().replace("x",""))
 			temp.add(san.casefold())
-			temp.add("-%d" % count)
+			temp.add("%d" % count)
 			if movelist is None:
 				movelist = "(1)%s" % san
 			else:
@@ -499,12 +517,12 @@ class main(FloatLayout):
 				temp.remove(i)
 			notation_moves_temp[san] = temp
 		moves["resign"] = 0
-		moves["-0"] = 0
-		notation_moves_temp["resign"] = ["resign", "-0"]
+		moves["0"] = 0
+		notation_moves_temp["resign"] = ["resign", "0"]
 		moves["draw"] = 0
-		moves["-00"] = 0
-		notation_moves_temp["draw"] = ["draw", "-00"]		
-		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or -1:\n" % list(notation_moves_temp)[0], font_size = 24) + self.format_text(movelist + " (0)resign (00)draw", font_size=23)
+		moves["00"] = 0
+		notation_moves_temp["draw"] = ["draw", "00"]		
+		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or 1:\n" % list(notation_moves_temp)[0], font_size = 24) + self.format_text(movelist + " (0)resign (00)draw", font_size=22)
 		self.move_options.text = self.moves_string
 		voted.set(set())
 		notation_moves.set(notation_moves_temp)
@@ -533,7 +551,7 @@ class main(FloatLayout):
 		data.sort(key=self.tally_count, reverse = True)
 		labels = []
 		quantity = []
-		for i in data[:6]:
+		for i in data[:5]:
 			labels.append(i[0])
 			quantity.append(i[1])
 			
@@ -576,7 +594,7 @@ async def event_message(ctx):
 				if processed in moves and not (ctx.author.name in votes):
 					ws = bot._ws
 					
-					await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s has gone with move %s." % (c["challenger"], ctx.content))
+					await ws.send_privmsg("#%s" % ctx.channel, f"/me %s has gone with move %s." % (c["challenger"], ctx.content))
 					
 					if ctx.content in moves:
 						moves[ctx.content] += 1
@@ -596,11 +614,11 @@ async def event_message(ctx):
 		ws = bot._ws
 		if processed == "resign":
 			if not db.change_points(ctx.author.name, -5):
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you need 5 points to resign" % ctx.author.name)
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you need 5 points to resign" % ctx.author.name)
 				return
 		
 		if len(votes) == 0:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me The first vote has been cast, a move will be made in 15 seconds")
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me The first vote has been cast, a move will be made in 15 seconds")
 		
 		if ctx.content in moves:
 			moves[ctx.content] += db.get_player_level(ctx.author.name)
@@ -616,7 +634,7 @@ async def event_message(ctx):
 @bot.command(name="notation")
 async def command_notation(ctx):
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/. You can also type your moves as the starting square followed by the ending square, eg. a4a6, b1d3. You can also type the number before to the move you want from the list on-screen, preceded by a - (-3, -12, etc)")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/. You can also type your moves as the starting square followed by the ending square, eg. a4a6, b1d3. You can also type the number before to the move you want from the list on-screen, preceded by a - (-3, -12, etc)")
 
 @bot.command(name="points")
 async def command_points(ctx):
@@ -626,11 +644,11 @@ async def command_points(ctx):
 		name = process_name(params[0])
 		points = db.get_points(name, no_create = True)
 		if points is None:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid username given.")
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid username given.")
 		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s has %s points." % (name, points))
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s has %s points." % (name, points))
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you have %s points." % (ctx.author.name, db.get_points(ctx.author.name)))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you have %s points." % (ctx.author.name, db.get_points(ctx.author.name)))
 
 @bot.command(name="log")
 async def command_log(ctx):
@@ -638,10 +656,10 @@ async def command_log(ctx):
 	params = get_params(ctx.content)
 	if len(params) > 0:
 		for line in wrap(db.get_game(get_params(ctx.content)[0]), 490):
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % line)
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % line)
 	else:
 		# TODO: Line wrap this one too
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % history.value)
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % history.value)
 
 @bot.command(name="gamble")
 async def command_gamble(ctx):
@@ -654,24 +672,24 @@ async def command_gamble(ctx):
 			try:
 				delta = int(params[0])
 			except:
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me You must choose a number to gamble")
 				return
 		
 		if delta < 69:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Minimum gamble amount is 69")
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Minimum gamble amount is 69")
 			return
 		
 		if db.change_points(ctx.author.name, -delta):
 			if random.choice([True, False]):
 				db.change_points(ctx.author.name, delta * 2)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp %s wagered %d points and won, now they have %d points PogChamp" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me PogChamp %s wagered %d points and won, now they have %d points PogChamp" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
 			else:
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me BibleThump %s wagered %d points and lost, now they have %d points BibleThump" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me BibleThump %s wagered %d points and lost, now they have %d points BibleThump" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
 		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points." % (ctx.author.name, db.get_points(ctx.author.name)))
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you only have %d points." % (ctx.author.name, db.get_points(ctx.author.name)))
 			
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You must choose a number to gamble")
 
 @bot.command(name="rob")
 async def command_rob(ctx):
@@ -679,7 +697,7 @@ async def command_rob(ctx):
 		
 	current = db.get_points(ctx.author.name)
 	if current < 200:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You wouldn't have enough points to pay bail, you need at least 200.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You wouldn't have enough points to pay bail, you need at least 200.")
 		return
 	
 	delta = random.randrange(100,200)
@@ -687,10 +705,10 @@ async def command_rob(ctx):
 	result = random.randrange(10)
 	if result == 0:
 		db.change_points(ctx.author.name, delta * 10)
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me SirSword %s robbed the bank for %d points! SirMad They now have %d points. SirPrise" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me SirSword %s robbed the bank for %d points! SirMad They now have %d points. SirPrise" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
 	else:
 		db.change_points(ctx.author.name, -delta)
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s got caught trying to rob a bank. NotLikeThis They had to pay %d points in bail." % (ctx.author.name, delta))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s got caught trying to rob a bank. NotLikeThis They had to pay %d points in bail." % (ctx.author.name, delta))
 
 @bot.command(name="roll")
 async def command_roll(ctx):
@@ -703,36 +721,36 @@ async def command_roll(ctx):
 			try:
 				delta = int(params[0])
 			except:
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me You must choose a number to gamble")
 				return
 		
 		if delta < 69:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Minimum gamble amount is 69")
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Minimum gamble amount is 69")
 			return
 		
 		if db.change_points(ctx.author.name, -delta):
 			result = random.randrange(1,101)
 			if result <= 60:
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s wagered %d points and rolled %d. Better luck next time :(" % (ctx.author.name, delta, result))
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s wagered %d points and rolled %d. Better luck next time :(" % (ctx.author.name, delta, result))
 			elif result <= 90:
 				db.change_points(ctx.author.name, delta * 2)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp %s rolled %d. They won %d points for rolling above 60, now they have %d points PogChamp" % (ctx.author.name, result, delta * 2, db.get_points(ctx.author.name)))
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me PogChamp %s rolled %d. They won %d points for rolling above 60, now they have %d points PogChamp" % (ctx.author.name, result, delta * 2, db.get_points(ctx.author.name)))
 			elif result <= 95:
 				db.change_points(ctx.author.name, delta * 3)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Kreygasm %s rolled %d. They won %d points for rolling above 90, now they have %d points Kreygasm" % (ctx.author.name, result, delta * 3, db.get_points(ctx.author.name)))
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me Kreygasm %s rolled %d. They won %d points for rolling above 90, now they have %d points Kreygasm" % (ctx.author.name, result, delta * 3, db.get_points(ctx.author.name)))
 			elif result <= 99:
 				db.change_points(ctx.author.name, delta * 4)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp Kreygasm %s rolled %d. They won %d points for rolling above 95, now they have %d points Kreygasm PogChamp" % (ctx.author.name, result, delta * 4, db.get_points(ctx.author.name)))
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me PogChamp Kreygasm %s rolled %d. They won %d points for rolling above 95, now they have %d points Kreygasm PogChamp" % (ctx.author.name, result, delta * 4, db.get_points(ctx.author.name)))
 			elif result == 100:
 				db.change_points(ctx.author.name, delta * 10)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PogChamp PogChamp PogChamp %s rolled 100! They win a jackpot of %s points! They now have %d points PogChamp PogChamp PogChamp" % (ctx.author.name, delta * 10, db.get_points(ctx.author.name)))
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me PogChamp PogChamp PogChamp %s rolled 100! They win a jackpot of %s points! They now have %d points PogChamp PogChamp PogChamp" % (ctx.author.name, delta * 10, db.get_points(ctx.author.name)))
 			
 				
 		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points." % (ctx.author.name, db.get_points(ctx.author.name)))
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you only have %d points." % (ctx.author.name, db.get_points(ctx.author.name)))
 			
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must choose a number to gamble")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You must choose a number to gamble")
 
 @bot.command(name="levelup")
 async def command_levelup(ctx):
@@ -741,18 +759,18 @@ async def command_levelup(ctx):
 	cost = 500 * pow(10, cur)
 	if db.change_points(ctx.author.name, -cost):
 		db.level_up(ctx.author.name)
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now level %d! PogChamp" % (ctx.author.name, cur + 1))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now level %d! PogChamp" % (ctx.author.name, cur + 1))
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, the next level costs %d." % (ctx.author.name, db.get_points(ctx.author.name), cost))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you only have %d points, the next level costs %d." % (ctx.author.name, db.get_points(ctx.author.name), cost))
 
 @bot.command(name="vip")
 async def command_vip(ctx):
 	ws = bot._ws
 	if db.change_points(ctx.author.name, -100000):
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/vip %s" % ctx.author.name)
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
+		await ws.send_privmsg("#%s" % ctx.channel, f"/vip %s" % ctx.author.name)
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, vip costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you only have %d points, vip costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
 
 @bot.command(name="difficulty")
 async def command_difficulty(ctx):
@@ -761,18 +779,18 @@ async def command_difficulty(ctx):
 	try:
 		target = int(params[0])
 	except:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Difficulty needs to be a number from 1-20.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Difficulty needs to be a number from 1-20.")
 		return
 	
 	if target > 20 or target < 1:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Difficulty needs to be a number from 1-20.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Difficulty needs to be a number from 1-20.")
 		return
 	
 	if db.change_points(ctx.author.name, -200):
 		db.add_game_param("level", target, replace = True)
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Stockfish will be set to level %d next game" % target)
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Stockfish will be set to level %d next game" % target)
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a difficulty change costs 200." % (ctx.author.name, db.get_points(ctx.author.name)))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you only have %d points, a difficulty change costs 200." % (ctx.author.name, db.get_points(ctx.author.name)))
 
 @bot.command(name="board")
 async def command_board(ctx):
@@ -783,21 +801,21 @@ async def command_board(ctx):
 		b = chess.Board()
 		b.set_board_fen(params[0])
 	except:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid board fen given.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid board fen given.")
 		return
 	
 	if b.is_game_over():
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid boardstate given.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid boardstate given.")
 		return
 	# TODO: Add more board checking
 	if None in [b.king(True), b.king(False)]:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Board must have at least one black and white king.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Board must have at least one black and white king.")
 		return
 	
 	try:
 		color = params[1].casefold()
 	except:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must specify twitch chat's color.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You must specify twitch chat's color.")
 		return
 	
 	if color in ["w", "white"]:
@@ -805,15 +823,15 @@ async def command_board(ctx):
 	elif color in ["b", "black"]:
 		color_target = "b"
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid color, choose white or black.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid color, choose white or black.")
 		return
 		
 	if db.change_points(ctx.author.name, -500):
 		db.add_game_param("board", params[0], replace = True)
 		db.add_game_param("color", color_target, replace = True)
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Custom starting board set for next game.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Custom starting board set for next game.")
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a custom start costs 500." % (ctx.author.name, db.get_points(ctx.author.name)))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you only have %d points, a custom start costs 500." % (ctx.author.name, db.get_points(ctx.author.name)))
 
 @bot.command(name="challenge")
 async def command_challenge(ctx):
@@ -821,30 +839,30 @@ async def command_challenge(ctx):
 	# TODO: Add existence check
 	if db.change_points(ctx.author.name, -100000):
 		db.add_game_param("challenger", ctx.author.name)
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s will fight the rest of twitch chat next game. Bring it!" % ctx.author.name)
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s will fight the rest of twitch chat next game. Bring it!" % ctx.author.name)
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, you only have %d points, a challenge costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you only have %d points, a challenge costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
 
 @bot.command(name="shop")
 async def command_shop(ctx):
 	# Make flexible, add more
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Buy commands: levelup, vip, difficulty, board, challenge")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me Buy commands: levelup, vip, difficulty, board, challenge")
 
 @bot.command(name="song")
 async def command_song(ctx):
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Music courtesy of Chilled Cow: https://www.youtube.com/c/chilledcow")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me Music courtesy of Chilled Cow: https://www.youtube.com/c/chilledcow")
 
 @bot.command(name="commands")
 async def command_commands(ctx):
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me See about section below the stream for full list of commands.")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me See about section below the stream for full list of commands.")
 
 @bot.command(name="pgnplay")
 async def command_pgnplay(ctx):
 	ws = bot._ws
-	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me PGN viewer and FEN editor here: https://www.chess.com/analysis")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me PGN viewer and FEN editor here: https://www.chess.com/analysis")
 
 @bot.command(name="give")
 async def command_give(ctx):
@@ -857,17 +875,17 @@ async def command_give(ctx):
 			if amount == 0:
 				return
 		except:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid number given.")
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid number given.")
 		points = db.get_points(name, no_create = True)
 		if points is None:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Invalid username given.")
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid username given.")
 		else:
 			
 			if db.change_points(ctx.author.name, -amount):
 				db.change_points(name, amount)
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s now has %s points." % (name, db.get_points(name)))
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s now has %s points." % (name, db.get_points(name)))
 			else:
-				await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You don't have that many points to give DansGame")
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me You don't have that many points to give DansGame")
 
 
 @bot.command(name="duel")
@@ -877,26 +895,26 @@ async def command_duel(ctx):
 	try:
 		victim = process_name(params[0])
 	except:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Name a person to duel and the number of points you want to wager")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Name a person to duel and the number of points you want to wager")
 		return
 		
 	try:
 		amount = int(params[1])
 	except:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must provide a number to wager")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You must provide a number to wager")
 		return
 	
 	if amount < 69:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You must wager at least 69 points")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You must wager at least 69 points")
 		return
 	
 	if db.get_points(ctx.author.name, no_create = True) >= amount and db.get_points(victim, no_create = True) >= amount:
 		if db.challenge(ctx.author.name, victim, amount):
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s, %s wants to duel you for %d points. !accept or !reject, duel expires in 15 minutes." % (victim, ctx.author.name, amount))
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, %s wants to duel you for %d points. !accept or !reject, duel expires in 15 minutes." % (victim, ctx.author.name, amount))
 		else:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me Each person can have at most one outgoing and one incoming challenge")
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Each person can have at most one outgoing and one incoming challenge")
 	else:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me You both need to have enough points to wager")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You both need to have enough points to wager")
 
 @bot.command(name="accept")
 async def command_accept(ctx):
@@ -904,26 +922,50 @@ async def command_accept(ctx):
 	result = db.accept_challenge(ctx.author.name)
 	if not result is None:
 		if db.get_points(result[0]) < result[2]:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s does not have enough points for the duel right now" % result[0])
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s does not have enough points for the duel right now" % result[0])
 			return
 		if db.get_points(result[1]) < result[2]:
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s does not have enough points for the duel right now" % result[1])
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s does not have enough points for the duel right now" % result[1])
 			return
 
 		if random.choice([True, False]):
 			db.change_points(result[0], result[2])
 			db.change_points(result[1], -result[2])
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s won the duel with %s and took %d of their lunch money!" % (result[0], result[1], result[2]))
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s won the duel with %s and took %d of their lunch money!" % (result[0], result[1], result[2]))
 		else:
 			db.change_points(result[0], -result[2])
 			db.change_points(result[1], result[2])
-			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s won the duel with %s and took %d of their lunch money!" % (result[1], result[0], result[2]))
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s won the duel with %s and took %d of their lunch money!" % (result[1], result[0], result[2]))
 		db.delete_challenge(ctx.author.name)
 
 @bot.command(name="reject")
 async def command_reject(ctx):
 	db.delete_challenge(ctx.author.name)
+
+@bot.command(name="joinstream")
+async def command_joinstream(ctx):
+	ws = bot._ws
+	if ctx.author.is_mod:
+		cur = visiting.value
+		if cur is None:
+			await bot.join_channels(["#%s" % ctx.author.name])
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat" % ctx.author.name)
+			visiting.set(ctx.author.name)
+		else:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is using the stream tool currently" % cur)
+	else:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Only mods can use joinstream. If you're a streamer looking to use the bot in your chat, whisper me and I can make you a mod.")
 	
+@bot.command(name="leavestream")
+async def command_leavestream(ctx):
+	ws = bot._ws
+	if visiting.value == ctx.author.name:
+		await bot.part_channels(["#%s" % ctx.author.name])
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me No longer monitoring %s's chat" % ctx.author.name)
+		visiting.set(None)
+	else:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me I wasn't connected to your stream anyways")
+
 class chessApp(App):
 	def build(self):
 		return main()
@@ -936,6 +978,7 @@ if __name__ == '__main__':
 	total_voted = m.Value(set, set())
 	history = m.Value(str, "")
 	custom_game = m.Value(dict, None)
+	visiting = m.Value(str, None)
 	p1 = Process(target=bot.run)
 	p2 = Process(target=chessApp().run)
 	p1.start()
