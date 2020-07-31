@@ -984,7 +984,7 @@ async def command_boot(ctx):
 async def command_send(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
-	if ctx.author.name == "twitch_plays_chess_"
+	if ctx.author.name == "twitch_plays_chess_":
 		await bot.join_channels(["#%s" % params[0]])
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % params[0])
 		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot in your stream chat, type !leavestream to have me leave." % params[0])
