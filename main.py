@@ -14,6 +14,7 @@ import configparser
 from kivy.clock import Clock
 from twitchio.ext import commands
 from multiprocessing import Process, Manager, Array
+import threading
 from matplotlib import pyplot
 import numpy as np
 from kivy.config import Config
@@ -24,6 +25,7 @@ import tpcdb
 from util import *
 import random
 from textwrap import wrap
+import asyncio
 Config.set('graphics', 'width', '1280')
 Config.set('graphics', 'height', '720')
 
@@ -313,6 +315,7 @@ class main(FloatLayout):
 				highmove = move
 				highvote = temp
 		
+		poll_message.set("The chosen move is %s" % highmove)
 		if highmove == "resign":
 			c = custom_game.value
 			if not c is None and "turn" in c:
@@ -361,6 +364,7 @@ class main(FloatLayout):
 		self.lastmove = None
 	
 	def end_game(self, result):
+		#TODO: Add global message on game end
 		self.lastmove = None
 		self.board_evaluations = deque([], 4)
 		votes = total_voted.value
@@ -534,7 +538,6 @@ class main(FloatLayout):
 		data = []
 		if len(voted.value) == 0:
 			return
-		
 		c = custom_game.value
 		if not c is None and "challenger" in c and c["turn"] and not self.counting:
 			self.counting = True
@@ -616,8 +619,9 @@ async def event_message(ctx):
 			if not db.change_points(ctx.author.name, -5):
 				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you need 5 points to resign" % ctx.author.name)
 				return
-		
+		flag = False
 		if len(votes) == 0:
+			flag = True
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me The first vote has been cast, a move will be made in 15 seconds")
 		
 		if ctx.content in moves:
@@ -630,6 +634,13 @@ async def event_message(ctx):
 		t = total_voted.value
 		t.add(ctx.author.name)
 		total_voted.set(t)
+		if flag:
+			await asyncio.sleep(16)
+			await bot.event_announce()
+			await asyncio.sleep(1)
+			await bot.event_announce()
+			await asyncio.sleep(1)
+			await bot.event_announce()
 
 @bot.command(name="notation")
 async def command_notation(ctx):
@@ -659,7 +670,8 @@ async def command_log(ctx):
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % line)
 	else:
 		# TODO: Line wrap this one too
-		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % history.value)
+		for line in wrap(history.value, 490):
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % history.value)
 
 @bot.command(name="gamble")
 async def command_gamble(ctx):
@@ -870,6 +882,10 @@ async def command_give(ctx):
 	params = get_params(ctx.content)
 	if len(params) > 1:
 		name = process_name(params[0])
+		if name == ctx.author.name:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Why are you trying to give yourself stuff?")
+			return
+
 		try:
 			amount = int(params[1])
 			if amount == 0:
@@ -908,12 +924,15 @@ async def command_duel(ctx):
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me You must wager at least 69 points")
 		return
 	
-	if db.get_points(ctx.author.name, no_create = True) >= amount and db.get_points(victim, no_create = True) >= amount:
-		if db.challenge(ctx.author.name, victim, amount):
-			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, %s wants to duel you for %d points. !accept or !reject, duel expires in 15 minutes." % (victim, ctx.author.name, amount))
+	try:
+		if db.get_points(ctx.author.name, no_create = True) >= amount and db.get_points(victim, no_create = True) >= amount:
+			if db.challenge(ctx.author.name, victim, amount):
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, %s wants to duel you for %d points. !accept or !reject, duel expires in 15 minutes." % (victim, ctx.author.name, amount))
+			else:
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me Each person can have at most one outgoing and one incoming challenge")
 		else:
-			await ws.send_privmsg("#%s" % ctx.channel, f"/me Each person can have at most one outgoing and one incoming challenge")
-	else:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me You both need to have enough points to wager")
+	except:
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me You both need to have enough points to wager")
 
 @bot.command(name="accept")
@@ -950,7 +969,7 @@ async def command_joinstream(ctx):
 		if cur is None:
 			await bot.join_channels(["#%s" % ctx.author.name])
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % ctx.author.name)
-			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot in your stream chat, type !leavestream to have me leave." % ctx.author.name)
+			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot in your stream chat, type !leavestream to have me leave.")
 			visiting.set(ctx.author.name)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is using the stream tool currently" % cur)
@@ -985,11 +1004,31 @@ async def command_send(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
 	if ctx.author.name == "twitch_plays_chess_":
+		if not visiting.value is None:
+			await bot.part_channels([visiting.value])
 		await bot.join_channels(["#%s" % params[0]])
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % params[0])
 		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot has arrived.")
 		visiting.set(params[0])
 
+@bot.command(name="visiting")
+async def command_visiting(ctx):
+	ws = bot._ws
+	if visiting.value is None:
+		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Not visiting any channel currently.")
+	else:
+		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Currently monitoring %s's chat" % visiting.value)
+
+@bot.event
+async def event_announce():
+	ws = bot._ws
+	temp = poll_message.value
+	if not temp is None:
+		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % temp)
+		if not visiting.value is None:
+			await ws.send_privmsg("#%s" % visiting.value, f"/me %s" % temp)
+		poll_message.set(None)
+		
 class chessApp(App):
 	def build(self):
 		return main()
@@ -1003,6 +1042,7 @@ if __name__ == '__main__':
 	history = m.Value(str, "")
 	custom_game = m.Value(dict, None)
 	visiting = m.Value(str, None)
+	poll_message = m.Value(str, None)
 	p1 = Process(target=bot.run)
 	p2 = Process(target=chessApp().run)
 	p1.start()
