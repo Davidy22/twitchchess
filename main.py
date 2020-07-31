@@ -975,9 +975,9 @@ async def command_boot(ctx):
 		if visiting.value is None:
 			return
 		else:
-			await bot.part_channels(visiting.value)
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Disconnecting from channel")
+			await bot.part_channels([visiting.value])
 			visiting.set(None)
-			await ws.send_privmsg("#%s" % ctx.channel, f"/me I wasn't connected to your stream anyways")
 
 
 @bot.command(name="send")
@@ -987,7 +987,7 @@ async def command_send(ctx):
 	if ctx.author.name == "twitch_plays_chess_":
 		await bot.join_channels(["#%s" % params[0]])
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % params[0])
-		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot in your stream chat, type !leavestream to have me leave." % params[0])
+		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot has arrived.")
 		visiting.set(params[0])
 
 class chessApp(App):
