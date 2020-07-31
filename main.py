@@ -520,13 +520,21 @@ class main(FloatLayout):
 			for i in remove:
 				temp.remove(i)
 			notation_moves_temp[san] = temp
-		moves["resign"] = 0
-		moves["0"] = 0
-		notation_moves_temp["resign"] = ["resign", "0"]
-		moves["draw"] = 0
-		moves["00"] = 0
-		notation_moves_temp["draw"] = ["draw", "00"]		
-		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or 1:\n" % list(notation_moves_temp)[0], font_size = 24) + self.format_text(movelist + " (0)resign (00)draw", font_size=22)
+		if visiting.value is None:
+			movelist += " (0)resign (00)draw"
+			moves["resign"] = 0
+			moves["0"] = 0
+			notation_moves_temp["resign"] = ["resign", "0"]
+			moves["draw"] = 0
+			moves["00"] = 0
+			notation_moves_temp["draw"] = ["draw", "00"]
+		else:
+			if custom_game.value["turn"]:
+				movelist += " (0)resign"
+				moves["resign"] = 0
+				moves["0"] = 0
+				notation_moves_temp["resign"] = ["resign", "0"]
+		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or 1:\n" % list(notation_moves_temp)[0], font_size = 24) + self.format_text(movelist, font_size=22)
 		self.move_options.text = self.moves_string
 		voted.set(set())
 		notation_moves.set(notation_moves_temp)
@@ -597,7 +605,7 @@ async def event_message(ctx):
 				if processed in moves and not (ctx.author.name in votes):
 					ws = bot._ws
 					
-					await ws.send_privmsg("#%s" % ctx.channel, f"/me %s has gone with move %s." % (c["challenger"], ctx.content))
+					await bot.event_announcenow("%s has gone with move %s." % (c["challenger"], ctx.content))
 					
 					if ctx.content in moves:
 						moves[ctx.content] += 1
@@ -622,7 +630,7 @@ async def event_message(ctx):
 		flag = False
 		if len(votes) == 0:
 			flag = True
-			await ws.send_privmsg("#%s" % ctx.channel, f"/me The first vote has been cast, a move will be made in 15 seconds")
+			await bot.event_announcenow("The first vote has been cast, a move will be made in 15 seconds")
 		
 		if ctx.content in moves:
 			moves[ctx.content] += db.get_player_level(ctx.author.name)
@@ -1028,7 +1036,16 @@ async def event_announce():
 		if not visiting.value is None:
 			await ws.send_privmsg("#%s" % visiting.value, f"/me %s" % temp)
 		poll_message.set(None)
-		
+
+
+@bot.event
+async def event_announcenow(message):
+	ws = bot._ws
+	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % message)
+	if not visiting.value is None:
+		await ws.send_privmsg("#%s" % visiting.value, f"/me %s" % message)
+	poll_message.set(None)
+
 class chessApp(App):
 	def build(self):
 		return main()
