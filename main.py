@@ -705,7 +705,7 @@ async def command_rob(ctx):
 	result = random.randrange(10)
 	if result == 0:
 		db.change_points(ctx.author.name, delta * 10)
-		await ws.send_privmsg("#%s" % ctx.channel, f"/me SirSword %s robbed the bank for %d points! SirMad They now have %d points. SirPrise" % (ctx.author.name, delta, db.get_points(ctx.author.name)))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me SirSword %s robbed the bank for %d points! SirMad They now have %d points. SirPrise" % (ctx.author.name, delta*10, db.get_points(ctx.author.name)))
 	else:
 		db.change_points(ctx.author.name, -delta)
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s got caught trying to rob a bank. NotLikeThis They had to pay %d points in bail." % (ctx.author.name, delta))
@@ -949,7 +949,8 @@ async def command_joinstream(ctx):
 		cur = visiting.value
 		if cur is None:
 			await bot.join_channels(["#%s" % ctx.author.name])
-			await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat" % ctx.author.name)
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % ctx.author.name)
+			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot in your stream chat, type !leavestream to have me leave." % ctx.author.name)
 			visiting.set(ctx.author.name)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is using the stream tool currently" % cur)
@@ -965,6 +966,29 @@ async def command_leavestream(ctx):
 		visiting.set(None)
 	else:
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me I wasn't connected to your stream anyways")
+
+
+@bot.command(name="boot")
+async def command_boot(ctx):
+	ws = bot._ws
+	if ctx.author.name == "twitch_plays_chess_":
+		if visiting.value is None:
+			return
+		else:
+			await bot.part_channels(visiting.value)
+			visiting.set(None)
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me I wasn't connected to your stream anyways")
+
+
+@bot.command(name="send")
+async def command_send(ctx):
+	ws = bot._ws
+	params = get_params(ctx.content)
+	if ctx.author.name == "twitch_plays_chess_"
+		await bot.join_channels(["#%s" % params[0]])
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % params[0])
+		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot in your stream chat, type !leavestream to have me leave." % params[0])
+		visiting.set(params[0])
 
 class chessApp(App):
 	def build(self):
