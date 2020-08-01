@@ -80,7 +80,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "20"
+		self.fish.depth = "15"
 		
 		self.custom_init()
 		
@@ -281,12 +281,15 @@ class main(FloatLayout):
 	def fish_move_(self, dt):
 		self.fish.set_fen_position(self.board.fen())
 		self.lastmove = self.fish.get_best_move()
+		poll_message.set("Stockfish went %s" % self.board.san(chess.Move.from_uci(self.lastmove)))
 		self.board.push_uci(self.lastmove)
 		self.update_board()
 		self.update_history()
 		
 		status = self.board.result()
 		if status == "*":
+			if self.board.can_claim_threefold_repetition():
+				self.end_game("d")
 			self.evaluate_position()
 			self.set_legal_moves()
 		elif status == "1/2-1/2":
@@ -348,6 +351,8 @@ class main(FloatLayout):
 	def player_move_(self, dt):
 		status = self.board.result()
 		if status == "*":
+			if self.board.can_claim_threefold_repetition():
+				self.end_game("d")
 			self.fish_move()
 		elif status == "1/2-1/2":
 			self.end_game("d")
@@ -476,13 +481,17 @@ class main(FloatLayout):
 		
 		db.game_end(result, level, len(voters), str(self.game_history))
 		self.record = db.get_record()
-			
+		
+	def movekey(self, move):
+		return self.board.san(move.from_uci(move.uci()))
+	
 	def set_legal_moves(self):
 		moves.clear()
 		notation_moves_temp = {}
 		count = 1
 		movelist = None
 		legal = list(self.board.legal_moves)
+		legal.sort(key=self.movekey)
 		if len(legal) == 0:
 			self.moves_string = self.format_text("Game is over, no legal moves", font_size=30)
 			self.move_options.text = self.moves_string
@@ -490,7 +499,7 @@ class main(FloatLayout):
 			notation_moves.set({})
 			return
 		
-		for move in self.board.legal_moves:
+		for move in legal:
 			temp = set()
 			san = self.board.san(move.from_uci(move.uci())).replace("+", "").replace("#","")
 			if san in moves:
@@ -645,10 +654,9 @@ async def event_message(ctx):
 		if flag:
 			await asyncio.sleep(16)
 			await bot.event_announce()
-			await asyncio.sleep(1)
-			await bot.event_announce()
-			await asyncio.sleep(1)
-			await bot.event_announce()
+			for i in range(10):
+				await asyncio.sleep(1)
+				await bot.event_announce()
 
 @bot.command(name="notation")
 async def command_notation(ctx):
@@ -975,6 +983,7 @@ async def command_joinstream(ctx):
 	if ctx.author.is_mod:
 		cur = visiting.value
 		if cur is None:
+			db.change_points(ctx.author.name, 5)
 			await bot.join_channels(["#%s" % ctx.author.name])
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % ctx.author.name)
 			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot in your stream chat, type !leavestream to have me leave.")
@@ -1026,6 +1035,16 @@ async def command_visiting(ctx):
 		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Not visiting any channel currently.")
 	else:
 		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Currently monitoring %s's chat" % visiting.value)
+		
+@bot.command(name="m")
+async def command_m(ctx):
+	ws = bot._ws
+	await ws.send_privmsg("#%s" % ctx.author.name, f"/me This isn't saberduder's stream, just type the move, no spaces.")
+	
+@bot.command(name="move")
+async def command_move(ctx):
+	ws = bot._ws
+	await ws.send_privmsg("#%s" % ctx.author.name, f"/me This isn't saberduder's stream, just type the move, no spaces.")
 
 @bot.event
 async def event_announce():
