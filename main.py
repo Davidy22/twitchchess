@@ -182,11 +182,11 @@ class main(FloatLayout):
 				self.game_history.headers["Board"]  = c["board"]
 			
 			if self.is_white:
-				poll_message.set("A new game has started, chat is white")
+				poll_message.set("A new game has started against %s, chat is white" % opp)
 				self.game_history.headers["White"] = "Twitch chat"
 				self.game_history.headers["Black"] = opp
 			else:
-				poll_message.set("A new game has started, chat is black")
+				poll_message.set("A new game has started against %s, chat is black" % opp)
 				self.game_history.headers["White"] = opp
 				self.game_history.headers["Black"] = "Twitch chat"
 			#self.game_history["Result"]
