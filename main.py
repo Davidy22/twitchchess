@@ -182,9 +182,11 @@ class main(FloatLayout):
 				self.game_history.headers["Board"]  = c["board"]
 			
 			if self.is_white:
+				poll_message.set("A new game has started, chat is white")
 				self.game_history.headers["White"] = "Twitch chat"
 				self.game_history.headers["Black"] = opp
 			else:
+				poll_message.set("A new game has started, chat is black")
 				self.game_history.headers["White"] = opp
 				self.game_history.headers["Black"] = "Twitch chat"
 			#self.game_history["Result"]
@@ -986,7 +988,7 @@ async def command_joinstream(ctx):
 			db.change_points(ctx.author.name, 5)
 			await bot.join_channels(["#%s" % ctx.author.name])
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % ctx.author.name)
-			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot in your stream chat, type !leavestream to have me leave.")
+			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot has arrived in your stream chat, type !leavestream to have me leave.")
 			visiting.set(ctx.author.name)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is using the stream tool currently" % cur)
