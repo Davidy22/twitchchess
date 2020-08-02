@@ -540,7 +540,8 @@ class main(FloatLayout):
 			moves["00"] = 0
 			notation_moves_temp["draw"] = ["draw", "00"]
 		else:
-			if custom_game.value["turn"]:
+			tmp = custom_game.value
+			if not tmp is None and "turn" in tmp and tmp["turn"]:
 				movelist += " (0)resign"
 				moves["resign"] = 0
 				moves["0"] = 0
