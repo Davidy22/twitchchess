@@ -1027,7 +1027,7 @@ async def command_send(ctx):
 			await bot.part_channels([visiting.value])
 		await bot.join_channels(["#%s" % params[0]])
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % params[0])
-		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot has arrived.")
+		await ws.send_privmsg("#%s" % params[0], f"/me Chess bot has arrived in your stream chat, type !leavestream to have me leave.")
 		visiting.set(params[0])
 
 @bot.command(name="visiting")
