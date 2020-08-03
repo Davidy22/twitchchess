@@ -553,7 +553,13 @@ class main(FloatLayout):
 				moves["resign"] = 0
 				moves["0"] = 0
 				notation_moves_temp["resign"] = ["resign", "0"]
-		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or 1:\n" % list(notation_moves_temp)[0], font_size = 24) + self.format_text(movelist, font_size=22)
+		if len(movelist) < 180:
+			font_size = (35, 28)
+		elif len(movelist) < 300:
+			font_size = (30, 24)
+		else:
+			font_size = (26, 20)
+		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or 1:\n" % list(notation_moves_temp)[0], font_size = font_size[0]) + self.format_text(movelist, font_size=font_size[1])
 		self.move_options.text = self.moves_string
 		voted.set(set())
 		notation_moves.set(notation_moves_temp)
@@ -691,8 +697,8 @@ async def command_points(ctx):
 	else:
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you have %s points." % (ctx.author.name, db.get_points(ctx.author.name)))
 
-@bot.command(name="log")
-async def command_log(ctx):
+@bot.event
+async def event_log():
 	ws = bot._ws
 	params = get_params(ctx.content)
 	if len(params) > 0:
@@ -703,9 +709,13 @@ async def command_log(ctx):
 		for line in wrap(history.value, 490):
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % history.value)
 
+@bot.command(name="log")
+async def command_log(ctx):
+	await bot.event_log(ctx)
+
 @bot.command(name="pgn")
 async def command_pgn(ctx):
-	await bot.command_log(ctx)
+	await bot.event_log(ctx)
 	
 @bot.command(name="gamble")
 async def command_gamble(ctx):
@@ -1034,6 +1044,7 @@ async def command_boot(ctx):
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Disconnecting from channel")
 			await bot.part_channels([visiting.value])
 			visiting.set(None)
+			await bot.event_abort(ctx, True)
 
 
 @bot.command(name="send")
