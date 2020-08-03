@@ -80,7 +80,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "15"
+		self.fish.depth = "18"
 		
 		self.custom_init()
 		
@@ -205,6 +205,7 @@ class main(FloatLayout):
 			return
 		if hold:
 			self.hold_message_ticks = 5
+			poll_message.set(text)
 		
 		if text is None:
 			if self.is_white:
@@ -340,6 +341,9 @@ class main(FloatLayout):
 				self.counting = False
 				self.update_plot(init = True)
 			return
+		elif highmove == "abort":
+			self.end_game("a")
+			return
 		else:
 			self.board.push_san(highmove)
 			self.update_board()
@@ -376,7 +380,8 @@ class main(FloatLayout):
 		self.board_evaluations = deque([], 4)
 		votes = total_voted.value
 		skill = db.get_level()
-		self.log(result, skill, votes)
+		if not result == "a":
+			self.log(result, skill, votes)
 		if result == "w":
 			c = custom_game.value
 			if not c is None:
@@ -399,6 +404,8 @@ class main(FloatLayout):
 			for vote in votes:
 				db.change_points(vote, 50)
 			self.update_info(text = "You drew, 50 points awarded to participants", hold = True)
+		elif result == "a":
+			self.update_info(text = "Game aborted", hold = True)
 		else: #TODO: Add prize for challenge winner
 			if skill > 1:
 				skill -= 1
@@ -577,7 +584,11 @@ class main(FloatLayout):
 		for i in data[:5]:
 			labels.append(i[0])
 			quantity.append(i[1])
-			
+		
+		if labels[0] == "abort":
+			Clock.schedule_once(self.player_move)
+			return
+		
 		y = np.arange(len(labels))
 		pyplot.figure(figsize = (3,3))
 		pyplot.bar(y, quantity, align='center', alpha=0.5, width=1.0)
@@ -664,7 +675,7 @@ async def event_message(ctx):
 @bot.command(name="notation")
 async def command_notation(ctx):
 	ws = bot._ws
-	await ws.send_privmsg("#%s" % ctx.channel, f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/. You can also type your moves as the starting square followed by the ending square, eg. a4a6, b1d3. You can also type the number before to the move you want from the list on-screen, preceded by a - (-3, -12, etc)")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/. You can also type your moves as the starting square followed by the ending square, eg. a4a6, b1d3. You can also type the number before to the move you want from the list on-screen (3, 12, etc)")
 
 @bot.command(name="points")
 async def command_points(ctx):
@@ -692,6 +703,10 @@ async def command_log(ctx):
 		for line in wrap(history.value, 490):
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % history.value)
 
+@bot.command(name="pgn")
+async def command_pgn(ctx):
+	await bot.command_log(ctx)
+	
 @bot.command(name="gamble")
 async def command_gamble(ctx):
 	ws = bot._ws
@@ -991,6 +1006,7 @@ async def command_joinstream(ctx):
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % ctx.author.name)
 			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot has arrived in your stream chat, type !leavestream to have me leave.")
 			visiting.set(ctx.author.name)
+			await bot.event_abort(ctx, True)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is using the stream tool currently" % cur)
 	else:
@@ -1003,6 +1019,7 @@ async def command_leavestream(ctx):
 		await bot.part_channels(["#%s" % ctx.author.name])
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me No longer monitoring %s's chat" % ctx.author.name)
 		visiting.set(None)
+		await bot.event_abort(ctx, True)
 	else:
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me I wasn't connected to your stream anyways")
 
@@ -1030,6 +1047,7 @@ async def command_send(ctx):
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % params[0])
 		await ws.send_privmsg("#%s" % params[0], f"/me Chess bot has arrived in your stream chat, type !leavestream to have me leave.")
 		visiting.set(params[0])
+		await bot.event_abort(ctx, True)
 
 @bot.command(name="visiting")
 async def command_visiting(ctx):
@@ -1048,6 +1066,21 @@ async def command_m(ctx):
 async def command_move(ctx):
 	ws = bot._ws
 	await ws.send_privmsg("#%s" % ctx.author.name, f"/me This isn't saberduder's stream, just type the move, no spaces.")
+	
+@bot.command(name="abort")
+async def command_abort(ctx, override = False):
+	await bot.event_abort(ctx, override)
+
+@bot.event
+async def event_abort(ctx, override):
+	ws = bot._ws
+	if ctx.author.name == "twitch_plays_chess_" or override:
+		moves.clear()
+		moves["abort"] = 1
+		notation_moves.set({"abort":["abort"]})
+		voted.set("twitch_plays_chess_")
+		await asyncio.sleep(1)
+		await bot.event_announce()
 
 @bot.event
 async def event_announce():
@@ -1058,7 +1091,6 @@ async def event_announce():
 		if not visiting.value is None:
 			await ws.send_privmsg("#%s" % visiting.value, f"/me %s" % temp)
 		poll_message.set(None)
-
 
 @bot.event
 async def event_announcenow(message):
