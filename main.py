@@ -556,7 +556,7 @@ class main(FloatLayout):
 		if len(movelist) < 180:
 			font_size = (35, 28)
 		elif len(movelist) < 300:
-			font_size = (30, 24)
+			font_size = (35, 23)
 		else:
 			font_size = (26, 20)
 		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or 1:\n" % list(notation_moves_temp)[0], font_size = font_size[0]) + self.format_text(movelist, font_size=font_size[1])
@@ -652,7 +652,7 @@ async def event_message(ctx):
 	votes = voted.value
 	if processed in moves and not (ctx.author.name in votes):
 		ws = bot._ws
-		if processed == "resign":
+		if processed in ["resign", "0"]:
 			if not db.change_points(ctx.author.name, -5):
 				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you need 5 points to resign" % ctx.author.name)
 				return
@@ -698,7 +698,7 @@ async def command_points(ctx):
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you have %s points." % (ctx.author.name, db.get_points(ctx.author.name)))
 
 @bot.event
-async def event_log():
+async def event_log(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
 	if len(params) > 0:
