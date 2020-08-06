@@ -239,9 +239,9 @@ class main(FloatLayout):
 				if self.countdown < 0:
 					self.countdown = 0
 				self.info_text += "\n%d seconds left to vote this turn" % self.countdown
-			self.info.text =  self.format_text(self.info_text, font_size = 23)
+			self.info.text =  self.format_text(self.info_text, font_size = 22)
 		else:
-			self.info.text = self.format_text(text, font_size = 23)
+			self.info.text = self.format_text(text, font_size = 22)
 	
 	def update_board(self):
 		image = self.renderer.draw(self.board.fen(), self.is_white, lastmove = self.lastmove)
@@ -359,6 +359,9 @@ class main(FloatLayout):
 		if status == "*":
 			if self.board.can_claim_threefold_repetition():
 				self.end_game("d")
+				self.counting = False
+				self.lastmove = None
+				return
 			self.fish_move()
 		elif status == "1/2-1/2":
 			self.end_game("d")
@@ -556,9 +559,11 @@ class main(FloatLayout):
 		if len(movelist) < 180:
 			font_size = (35, 28)
 		elif len(movelist) < 300:
-			font_size = (35, 23)
+			font_size = (35, 24)
+		elif len(movelist) < 745:
+			font_size = (26, 19)
 		else:
-			font_size = (26, 20)
+			font_size = (26, 17)
 		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or 1:\n" % list(notation_moves_temp)[0], font_size = font_size[0]) + self.format_text(movelist, font_size=font_size[1])
 		self.move_options.text = self.moves_string
 		voted.set(set())
@@ -681,7 +686,7 @@ async def event_message(ctx):
 @bot.command(name="notation")
 async def command_notation(ctx):
 	ws = bot._ws
-	await ws.send_privmsg("#%s" % ctx.channel, f"/me Guide to voting move notation https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/. You can also type your moves as the starting square followed by the ending square, eg. a4a6, b1d3. You can also type the number before to the move you want from the list on-screen (3, 12, etc)")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me You can type your moves as the starting square followed by the ending square, eg. a4a6, b1d3. You can also type the number before to the move you want from the list on-screen (3, 12, etc). You can also use algebraic notation, cheat sheet here: https://cheatography.com/davechild/cheat-sheets/chess-algebraic-notation/")
 
 @bot.command(name="points")
 async def command_points(ctx):
@@ -913,13 +918,28 @@ async def command_song(ctx):
 @bot.command(name="commands")
 async def command_commands(ctx):
 	ws = bot._ws
-	await ws.send_privmsg("#%s" % ctx.channel, f"/me See about section below the stream for full list of commands.")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me See the about section below the bot's stream for full list of commands.")
 
 @bot.command(name="pgnplay")
 async def command_pgnplay(ctx):
 	ws = bot._ws
 	await ws.send_privmsg("#%s" % ctx.channel, f"/me PGN viewer and FEN editor here: https://www.chess.com/analysis")
 
+@bot.command(name="claim")
+async def command_claim(ctx):
+	ws = bot._ws
+	result = db.get_daily_status(ctx.author.name)
+	if result == True:
+		db.change_points(ctx.author.name, 69)
+		db.reset_account_date(ctx.author.name)
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me 69 points have been added to your account.")
+	else:
+		result = 79200 - result
+		hours = int(result /3600)
+		minutes = int(result / 60) % 60
+		seconds = result % 60
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You have %d:%d:%d until you can claim more free points." % (hours, minutes, seconds))
+		
 @bot.command(name="give")
 async def command_give(ctx):
 	ws = bot._ws
@@ -1064,24 +1084,25 @@ async def command_send(ctx):
 async def command_visiting(ctx):
 	ws = bot._ws
 	if visiting.value is None:
-		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Not visiting any channel currently.")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Not visiting any channel currently.")
 	else:
-		await ws.send_privmsg("#%s" % ctx.author.name, f"/me Currently monitoring %s's chat" % visiting.value)
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Currently monitoring %s's chat" % visiting.value)
 		
 @bot.command(name="m")
 async def command_m(ctx):
 	ws = bot._ws
-	await ws.send_privmsg("#%s" % ctx.author.name, f"/me This isn't saberduder's stream, just type the move, no spaces.")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me This isn't saberduder's stream, just type the move, no spaces.")
 	
 @bot.command(name="move")
 async def command_move(ctx):
 	ws = bot._ws
-	await ws.send_privmsg("#%s" % ctx.author.name, f"/me This isn't saberduder's stream, just type the move, no spaces.")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me This isn't saberduder's stream, just type the move, no spaces.")
 	
 @bot.command(name="abort")
-async def command_abort(ctx, override = False):
-	await bot.event_abort(ctx, override)
+async def command_abort(ctx):
+	await bot.event_abort(ctx, False)
 
+	
 @bot.event
 async def event_abort(ctx, override):
 	ws = bot._ws

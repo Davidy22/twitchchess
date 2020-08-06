@@ -28,7 +28,7 @@ class conn():
 	
 	
 	def new_account(self, username, points = 0):
-		self.c.execute('INSERT INTO accounts(name, points) VALUES (?, ?)', (username, int(points)))
+		self.c.execute('INSERT INTO accounts(name, points, daily) VALUES (?, ?, ?)', (username, int(points), datetime.datetime(2000,1,1,1,1,1)))
 		self.conn.commit()
 
 	def game_end(self, result, level, voters, text):
@@ -150,8 +150,28 @@ class conn():
 			return result
 		except:
 			return None
-			
 		
 	def delete_challenge(self, victim):
 		self.c.execute('delete from challenges where victim = ?', (victim,))
+		self.conn.commit()
+
+	def get_daily_status(self, user):
+		#79200
+		try:
+			result = self.c.execute('select daily from accounts where name = ?', (user,)).fetchall()[0][0]
+			diff = (datetime.datetime.now() - result)
+			if diff.days > 0:
+				return True
+			
+			if diff.seconds > 79200:
+				return True
+			else:
+				return diff.seconds
+		except:
+			import traceback
+			traceback.print_exc()
+			return None
+	
+	def reset_account_date(self, user):
+		self.c.execute("update accounts set daily=? where name=?", (datetime.datetime.now(),user))
 		self.conn.commit()

@@ -28,3 +28,4 @@ CREATE TABLE `challenges` (
 	`timestamp`	TIMESTAMP NOT NULL,
 	PRIMARY KEY(`victim`)
 );
+update accounts set daily=datetime('now', '-2 day')
