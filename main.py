@@ -557,7 +557,7 @@ class main(FloatLayout):
 				moves["0"] = 0
 				notation_moves_temp["resign"] = ["resign", "0"]
 		if len(movelist) < 180:
-			font_size = (35, 28)
+			font_size = (35, 27)
 		elif len(movelist) < 300:
 			font_size = (35, 24)
 		elif len(movelist) < 745:
@@ -827,11 +827,32 @@ async def command_levelup(ctx):
 @bot.command(name="vip")
 async def command_vip(ctx):
 	ws = bot._ws
-	if db.change_points(ctx.author.name, -100000):
-		await ws.send_privmsg("#%s" % ctx.channel, f"/vip %s" % ctx.author.name)
-		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
+	params = get_params(ctx.content)
+	try:
+		amount = int(params[0])
+	except:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You need to specify a number of points to put towards VIP")
+		return
+	
+	if amount < 1:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You need to specify a non zero amount of points to put towards VIP")
+		return
+	
+	if db.change_points(ctx.author.name, amount):
+		result = db.add_vip_points(ctx.author.name, amount)
+		if type(result) == str:
+			await ws.send_privmsg("#%s" % secrets['DEFAULT']['channel'], f"/vip %s" % ctx.author.name)
+			await ws.send_privmsg("#%s" % secrets['DEFAULT']['channel'], f"/unvip %s" % result)
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
+		else:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now rank %d on the VIP leaderboard with %d vip points." % (ctx.author.name, result[0], result[1]))
 	else:
-		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you only have %d points, vip costs 100000." % (ctx.author.name, db.get_points(ctx.author.name)))
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You're trying to spend more points on VIP than you have")
+
+
+@bot.command(name="leaderboard")
+async def command_leaderboard(ctx):
+	pass
 
 @bot.command(name="difficulty")
 async def command_difficulty(ctx):
@@ -908,7 +929,7 @@ async def command_challenge(ctx):
 async def command_shop(ctx):
 	# Make flexible, add more
 	ws = bot._ws
-	await ws.send_privmsg("#%s" % ctx.channel, f"/me Buy commands: levelup, vip, difficulty, board, challenge")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me Buy things with points: !levelup, !vip, !difficulty, !board, !challenge")
 
 @bot.command(name="song")
 async def command_song(ctx):

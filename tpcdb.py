@@ -175,3 +175,19 @@ class conn():
 	def reset_account_date(self, user):
 		self.c.execute("update accounts set daily=? where name=?", (datetime.datetime.now(),user))
 		self.conn.commit()
+
+	def add_vip_points(self, user, amount):
+		prevrank = self.get_vip_rank(user)
+		self.c.execute("update accounts set vip=vip+? where name=?", (amount,user))
+		self.conn.commit()
+		badges = 10 # Change constants with VIP badge count
+		newrank = self.get_vip_rank(user)
+		if prevrank[0] > badges and newrank[0] <= badges:
+			return self.get_vip_list()[badges][0]
+		return newrank
+	
+	def get_vip_rank(self, user):
+		return self.c.execute("SELECT (SELECT COUNT(*) FROM accounts AS x WHERE x.vip >= t.vip) AS Rank, t.vip FROM accounts as t where name = ?", (user,)).fetchall()[0]
+	
+	def get_vip_list(self):
+		return self.c.execute("SELECT t.name, t.vip, (SELECT COUNT(*) FROM accounts AS x WHERE x.vip >= t.vip) AS Rank FROM accounts as t order by Rank, t.id").fetchall()
