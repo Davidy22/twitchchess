@@ -841,14 +841,13 @@ async def command_vip(ctx):
 	if db.change_points(ctx.author.name, amount):
 		result = db.add_vip_points(ctx.author.name, amount)
 		if type(result) == str:
-			await ws.send_privmsg("#%s" % secrets['DEFAULT']['channel'], f"/vip %s" % ctx.author.name)
 			await ws.send_privmsg("#%s" % secrets['DEFAULT']['channel'], f"/unvip %s" % result)
+			await ws.send_privmsg("#%s" % secrets['DEFAULT']['channel'], f"/vip %s" % ctx.author.name)
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now rank %d on the VIP leaderboard with %d vip points." % (ctx.author.name, result[0], result[1]))
 	else:
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me You're trying to spend more points on VIP than you have")
-
 
 @bot.command(name="leaderboard")
 async def command_leaderboard(ctx):
