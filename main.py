@@ -80,7 +80,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "18"
+		self.fish.depth = "17"
 		
 		self.custom_init()
 		
@@ -320,7 +320,12 @@ class main(FloatLayout):
 			if temp > highvote:
 				highmove = move
 				highvote = temp
-		
+		if highvote <= 0:
+			poll_message.set("Every move was vetoed, talk it out guys")
+			self.set_legal_moves()
+			self.counting = False
+			return
+			
 		poll_message.set("The chosen move is %s" % highmove)
 		if highmove == "resign":
 			c = custom_game.value
@@ -508,6 +513,7 @@ class main(FloatLayout):
 			self.moves_string = self.format_text("Game is over, no legal moves", font_size=30)
 			self.move_options.text = self.moves_string
 			voted.set(set())
+			vetoed.set(set())
 			notation_moves.set({})
 			return
 		
@@ -551,15 +557,15 @@ class main(FloatLayout):
 			notation_moves_temp["draw"] = ["draw", "00"]
 		else:
 			tmp = custom_game.value
-			if not tmp is None and "turn" in tmp and tmp["turn"]:
-				movelist += " (0)resign"
-				moves["resign"] = 0
-				moves["0"] = 0
-				notation_moves_temp["resign"] = ["resign", "0"]
+			#if not tmp is None and "turn" in tmp and tmp["turn"]:
+			movelist += " (0)resign"
+			moves["resign"] = 0
+			moves["0"] = 0
+			notation_moves_temp["resign"] = ["resign", "0"]
 		if len(movelist) < 180:
 			font_size = (35, 27)
 		elif len(movelist) < 300:
-			font_size = (35, 24)
+			font_size = (33, 24)
 		elif len(movelist) < 745:
 			font_size = (26, 19)
 		else:
@@ -567,6 +573,7 @@ class main(FloatLayout):
 		self.moves_string = self.format_text("Legal moves, type in chat to vote, eg.%s or 1:\n" % list(notation_moves_temp)[0], font_size = font_size[0]) + self.format_text(movelist, font_size=font_size[1])
 		self.move_options.text = self.moves_string
 		voted.set(set())
+		vetoed.set(set())
 		notation_moves.set(notation_moves_temp)
 		
 	def tally_count(self, val):
@@ -602,7 +609,7 @@ class main(FloatLayout):
 		
 		y = np.arange(len(labels))
 		pyplot.figure(figsize = (3,3))
-		pyplot.bar(y, quantity, align='center', alpha=0.5, width=1.0)
+		pyplot.bar(y, quantity, align='center', alpha=0.5, width=1.0, color="black")
 		pyplot.xticks(y, labels)
 		pyplot.ylim(ymin=0, ymax=quantity[0])
 		pyplot.gca().axes.get_yaxis().set_visible(False)
@@ -610,8 +617,12 @@ class main(FloatLayout):
 		pyplot.close()
 		
 		if not self.counting:
-			Clock.schedule_once(self.player_move, 15)
-			self.countdown = 15
+			if visiting.value is None:
+				timer = 15
+			else:
+				timer = 23
+			Clock.schedule_once(self.player_move, timer)
+			self.countdown = timer
 			self.counting = True
 
 @bot.event
@@ -679,7 +690,7 @@ async def event_message(ctx):
 		if flag:
 			await asyncio.sleep(16)
 			await bot.event_announce()
-			for i in range(10):
+			for i in range(13):
 				await asyncio.sleep(1)
 				await bot.event_announce()
 
@@ -1122,7 +1133,39 @@ async def command_move(ctx):
 async def command_abort(ctx):
 	await bot.event_abort(ctx, False)
 
+
+@bot.command(name="veto")
+async def command_veto(ctx):
+	ws = bot._ws
+	params = get_params(ctx.content)
+	try:
+		veto = params[0]
+		processed = veto.replace("+", "").replace("#","").casefold().replace("x","")
+	except:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Specify a move to veto")
+		return
 	
+	c = custom_game.value
+	if not c is None and "challenger" in c:
+		if c["turn"]:
+			return
+		if ctx.author.name == c["challenger"]:
+			return
+	
+	# Remove move from tally if valid
+	votes = voted.value
+	vetoes = vetoed.value
+	if processed in moves and not (ctx.author.name in vetoes) and not len(votes) == 0:
+		if db.change_points(ctx.author.name, -30):
+			if veto in moves:
+				moves[veto] -= 1
+			else:
+				moves[processed] -= 1
+			vetoes.add(ctx.author.name)
+			vetoed.set(vetoes)
+		else:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me You need at least 30 points to veto a move")
+		
 @bot.event
 async def event_abort(ctx, override):
 	ws = bot._ws
@@ -1161,6 +1204,7 @@ if __name__ == '__main__':
 	moves = m.dict()
 	notation_moves = m.Value(dict, {})
 	voted = m.Value(set, set())
+	vetoed = m.Value(set, set())
 	total_voted = m.Value(set, set())
 	history = m.Value(str, "")
 	custom_game = m.Value(dict, None)

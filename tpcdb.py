@@ -180,7 +180,7 @@ class conn():
 		prevrank = self.get_vip_rank(user)
 		self.c.execute("update accounts set vip=vip+? where name=?", (amount,user))
 		self.conn.commit()
-		badges = 10 # Change constants with VIP badge count
+		badges = 20 # Change constants with VIP badge count
 		newrank = self.get_vip_rank(user)
 		if prevrank[0] > badges and newrank[0] <= badges:
 			return self.get_vip_list()[badges][0]
