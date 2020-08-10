@@ -728,7 +728,7 @@ async def event_log(ctx):
 	else:
 		# TODO: Line wrap this one too
 		for line in wrap(history.value, 490):
-			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % history.value)
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % line)
 
 @bot.command(name="log")
 async def command_log(ctx):
