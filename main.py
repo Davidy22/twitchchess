@@ -618,9 +618,9 @@ class main(FloatLayout):
 		
 		if not self.counting:
 			if visiting.value is None:
-				timer = 15
+				timer = 16
 			else:
-				timer = 23
+				timer = 26
 			Clock.schedule_once(self.player_move, timer)
 			self.countdown = timer
 			self.counting = True
@@ -675,7 +675,12 @@ async def event_message(ctx):
 		flag = False
 		if len(votes) == 0:
 			flag = True
-			await bot.event_announcenow("The first vote has been cast, a move will be made in 15 seconds")
+			
+			if visiting.value is None:
+				timer = 15
+			else:
+				timer = 25
+			await bot.event_announcenow("The first vote has been cast, a move will be made in %d seconds" % timer)
 		
 		if ctx.content in moves:
 			moves[ctx.content] += db.get_player_level(ctx.author.name)
@@ -983,7 +988,7 @@ async def command_give(ctx):
 
 		try:
 			amount = int(params[1])
-			if amount == 0:
+			if amount <= 0:
 				return
 		except:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid number given.")
@@ -1158,9 +1163,9 @@ async def command_veto(ctx):
 	if processed in moves and not (ctx.author.name in vetoes) and not len(votes) == 0:
 		if db.change_points(ctx.author.name, -30):
 			if veto in moves:
-				moves[veto] -= 1
+				moves[veto] -= db.get_player_level(ctx.author.name)
 			else:
-				moves[processed] -= 1
+				moves[processed] -= db.get_player_level(ctx.author.name)
 			vetoes.add(ctx.author.name)
 			vetoed.set(vetoes)
 		else:
