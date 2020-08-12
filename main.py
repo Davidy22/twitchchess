@@ -618,7 +618,7 @@ class main(FloatLayout):
 		
 		if not self.counting:
 			if visiting.value is None:
-				timer = 11
+				timer = 6
 			else:
 				timer = 26
 			Clock.schedule_once(self.player_move, timer)
@@ -677,7 +677,7 @@ async def event_message(ctx):
 			flag = True
 			
 			if visiting.value is None:
-				timer = 10
+				timer = 5
 			else:
 				timer = 25
 			await bot.event_announcenow("The first vote has been cast, a move will be made in %d seconds" % timer)
@@ -693,9 +693,9 @@ async def event_message(ctx):
 		t.add(ctx.author.name)
 		total_voted.set(t)
 		if flag:
-			await asyncio.sleep(16)
+			await asyncio.sleep(5)
 			await bot.event_announce()
-			for i in range(13):
+			for i in range(15):
 				await asyncio.sleep(1)
 				await bot.event_announce()
 
