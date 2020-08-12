@@ -618,7 +618,7 @@ class main(FloatLayout):
 		
 		if not self.counting:
 			if visiting.value is None:
-				timer = 16
+				timer = 11
 			else:
 				timer = 26
 			Clock.schedule_once(self.player_move, timer)
@@ -677,7 +677,7 @@ async def event_message(ctx):
 			flag = True
 			
 			if visiting.value is None:
-				timer = 15
+				timer = 10
 			else:
 				timer = 25
 			await bot.event_announcenow("The first vote has been cast, a move will be made in %d seconds" % timer)
@@ -844,6 +844,8 @@ async def command_levelup(ctx):
 async def command_vip(ctx):
 	ws = bot._ws
 	params = get_params(ctx.content)
+	if ctx.author.is_mod:
+		return
 	try:
 		amount = int(params[0])
 	except:
@@ -854,7 +856,7 @@ async def command_vip(ctx):
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me You need to specify a non zero amount of points to put towards VIP")
 		return
 	
-	if db.change_points(ctx.author.name, amount):
+	if db.change_points(ctx.author.name, -amount):
 		result = db.add_vip_points(ctx.author.name, amount)
 		if type(result) == str:
 			await ws.send_privmsg("#%s" % secrets['DEFAULT']['channel'], f"/unvip %s" % result)
@@ -944,7 +946,7 @@ async def command_challenge(ctx):
 async def command_shop(ctx):
 	# Make flexible, add more
 	ws = bot._ws
-	await ws.send_privmsg("#%s" % ctx.channel, f"/me Buy things with points: !levelup, !vip, !difficulty, !board, !challenge")
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me Buy things with points: !veto, !levelup, !vip, !difficulty, !board, !challenge")
 
 @bot.command(name="song")
 async def command_song(ctx):
