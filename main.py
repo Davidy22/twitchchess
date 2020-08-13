@@ -320,12 +320,23 @@ class main(FloatLayout):
 			if temp > highvote:
 				highmove = move
 				highvote = temp
+			if temp == highvote:
+				if highmove is None:
+					continue
+				else:
+					if type(highmove) == str:
+						highmove = [highmove, move]
+					else:
+						highmove.append(move)
 		if highvote <= 0:
 			poll_message.set("Every move was vetoed, talk it out guys")
 			self.set_legal_moves()
 			self.counting = False
 			return
-			
+		
+		if type(highmove) == list:
+			highmove = random.choice(highmove)
+		
 		poll_message.set("The chosen move is %s" % highmove)
 		if highmove == "resign":
 			c = custom_game.value
