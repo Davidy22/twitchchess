@@ -881,10 +881,6 @@ async def command_vip(ctx):
 	else:
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me You're trying to spend more points on VIP than you have")
 
-@bot.command(name="leaderboard")
-async def command_leaderboard(ctx):
-	pass
-
 @bot.command(name="difficulty")
 async def command_difficulty(ctx):
 	ws = bot._ws
@@ -1188,7 +1184,6 @@ async def command_veto(ctx):
 
 @bot.command(name="changetimer")
 async def command_changetimer(ctx):
-	await bot.event_abort(ctx, False)
 	ws = bot._ws
 	params = get_params(ctx.content)
 	
@@ -1218,6 +1213,24 @@ async def command_changetimer(ctx):
 		timers["visit"] = new
 	await ws.send_privmsg("#%s" % ctx.channel, f"/me Vote clock is now %d seconds" % new)
 
+@bot.command(name="leaderboard")
+async def command_leaderboard(ctx):
+	ws = bot._ws
+	params = get_params(ctx.content)
+	
+	try:
+		place = int(params[0])
+		result = db.get_vip_list()[place-1]
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Number %d on the VIP leaderboard is %s with %d points spent" % (place, result[0], result[1]))
+	except:
+		try:
+			username = process_name(params[0])
+		except:
+			username = ctx.author.name
+		result = db.get_vip_rank(username)
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is number %d on the VIP leaderboard with %d points spent" % (username, result[0], result[1]))
+			
+	
 @bot.event
 async def event_abort(ctx, override):
 	ws = bot._ws
