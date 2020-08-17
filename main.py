@@ -629,9 +629,9 @@ class main(FloatLayout):
 		
 		if not self.counting:
 			if visiting.value is None:
-				timer = 6
+				timer = timers["alone"] + 1
 			else:
-				timer = 26
+				timer = timers["visit"] + 1
 			Clock.schedule_once(self.player_move, timer)
 			self.countdown = timer
 			self.counting = True
@@ -688,9 +688,9 @@ async def event_message(ctx):
 			flag = True
 			
 			if visiting.value is None:
-				timer = 5
+				timer = timers["alone"]
 			else:
-				timer = 25
+				timer = timers["visit"]
 			await bot.event_announcenow("The first vote has been cast, a move will be made in %d seconds" % timer)
 		
 		if ctx.content in moves:
@@ -704,7 +704,10 @@ async def event_message(ctx):
 		t.add(ctx.author.name)
 		total_voted.set(t)
 		if flag:
-			await asyncio.sleep(5)
+			if visiting.value is None:
+				await asyncio.sleep(timers["alone"])
+			else:
+				await asyncio.sleep(timers["visit"])
 			await bot.event_announce()
 			for i in range(15):
 				await asyncio.sleep(1)
@@ -1151,7 +1154,6 @@ async def command_move(ctx):
 async def command_abort(ctx):
 	await bot.event_abort(ctx, False)
 
-
 @bot.command(name="veto")
 async def command_veto(ctx):
 	ws = bot._ws
@@ -1183,7 +1185,39 @@ async def command_veto(ctx):
 			vetoed.set(vetoes)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me You need at least 30 points to veto a move")
-		
+
+@bot.command(name="changetimer")
+async def command_changetimer(ctx):
+	await bot.event_abort(ctx, False)
+	ws = bot._ws
+	params = get_params(ctx.content)
+	
+	temp = visiting.value
+	if temp is None:
+		if not ctx.author.name == "twitch_plays_chess_":
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Only the channel owner can change the vote timer")
+			return
+	else:
+		if not ctx.author.name in ["twitch_plays_chess_", temp]:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Only the channel owner or %s can change the vote timer" % temp)
+			return
+	
+	try:
+		new = int(params[0])
+	except:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You must specify a number for the new timer duration")
+		return
+	
+	if new < 1:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Time must be a positive number")
+		return
+	
+	if temp is None:
+		timers["alone"] = new
+	else:
+		timers["visit"] = new
+	await ws.send_privmsg("#%s" % ctx.channel, f"/me Vote clock is now %d seconds" % new)
+
 @bot.event
 async def event_abort(ctx, override):
 	ws = bot._ws
@@ -1228,6 +1262,9 @@ if __name__ == '__main__':
 	custom_game = m.Value(dict, None)
 	visiting = m.Value(str, None)
 	poll_message = m.Value(str, None)
+	timers = m.dict()
+	timers["visit"] = 30
+	timers["alone"] = 5
 	p1 = Process(target=bot.run)
 	p2 = Process(target=chessApp().run)
 	p1.start()
