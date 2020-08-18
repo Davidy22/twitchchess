@@ -1220,6 +1220,10 @@ async def command_leaderboard(ctx):
 	
 	try:
 		place = int(params[0])
+		if place < 1:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me That's not a valid position number on the leaderboard")
+			return
+		
 		result = db.get_vip_list()[place-1]
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me Number %d on the VIP leaderboard is %s with %d points spent" % (place, result[0], result[1]))
 	except:
