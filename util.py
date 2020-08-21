@@ -10,3 +10,11 @@ def rchop(s, suffix):
     if suffix and s.endswith(suffix):
         return s[:-len(suffix)]
     return s
+
+def broadcast(poll_message, message):
+	temp = poll_message.value
+	if temp is None:
+		poll_message.set([message])
+	else:
+		temp.append(message)
+		poll_message.set(temp)

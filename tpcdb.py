@@ -134,6 +134,14 @@ class conn():
 		except:
 			pass
 		try:
+			result = self.c.execute('select timestamp, victim from challenges where challenger = ?', (victim,)).fetchall()[0]
+			if (datetime.datetime.now() - result[0]).seconds > 900:
+				self.delete_challenge(result[1])
+			else:
+				return False
+		except:
+			pass
+		try:
 			self.c.execute('insert into challenges(challenger,victim,amount,timestamp) Values (?, ?, ?, ?)', (challenger, victim, amount, datetime.datetime.now()))
 			self.conn.commit()
 			return True

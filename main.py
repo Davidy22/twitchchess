@@ -69,7 +69,7 @@ class main(FloatLayout):
 		self.fish = Stockfish(parameters={"Minimum Thinking Time": 6000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
-		self.evaluator.depth = "20"
+		self.evaluator.depth = "25"
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
@@ -80,7 +80,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "17"
+		self.fish.depth = "19"
 		
 		self.custom_init()
 		
@@ -144,7 +144,10 @@ class main(FloatLayout):
 	def evaluate_resign(self):
 		try:
 			if self.board_evaluations[-1]["type"] == "mate":
-				return (self.is_white and self.board_evaluations[-1]["value"] > 0) or (not self.is_white and self.board_evaluations[-1]["value"] < 0)
+				result = (self.is_white and self.board_evaluations[-1]["value"] > 0) or (not self.is_white and self.board_evaluations[-1]["value"] < 0)
+				if result:
+					broadcast(poll_message,"Stockfish resigned")
+					return True 
 			else:
 				if len(self.board_evaluations) > 3:
 					for i in self.board_evaluations:
@@ -157,6 +160,7 @@ class main(FloatLayout):
 							return False
 						if i["type"] == "cp" and i["value"] * const > -900:
 							return False
+					broadcast(poll_message,"Stockfish resigned")
 					return True
 				else:
 					return False
@@ -182,11 +186,11 @@ class main(FloatLayout):
 				self.game_history.headers["Board"]  = c["board"]
 			
 			if self.is_white:
-				poll_message.set("A new game has started against %s, chat is white" % opp)
+				broadcast(poll_message,"A new game has started against %s, chat is white" % opp)
 				self.game_history.headers["White"] = "Twitch chat"
 				self.game_history.headers["Black"] = opp
 			else:
-				poll_message.set("A new game has started against %s, chat is black" % opp)
+				broadcast(poll_message,"A new game has started against %s, chat is black" % opp)
 				self.game_history.headers["White"] = opp
 				self.game_history.headers["Black"] = "Twitch chat"
 			#self.game_history["Result"]
@@ -205,7 +209,7 @@ class main(FloatLayout):
 			return
 		if hold:
 			self.hold_message_ticks = 5
-			poll_message.set(text)
+			broadcast(poll_message,text)
 		
 		if text is None:
 			if self.is_white:
@@ -284,7 +288,7 @@ class main(FloatLayout):
 	def fish_move_(self, dt):
 		self.fish.set_fen_position(self.board.fen())
 		self.lastmove = self.fish.get_best_move()
-		poll_message.set("Stockfish went %s" % self.board.san(chess.Move.from_uci(self.lastmove)))
+		broadcast(poll_message,"Stockfish went %s" % self.board.san(chess.Move.from_uci(self.lastmove)))
 		self.board.push_uci(self.lastmove)
 		self.update_board()
 		self.update_history()
@@ -329,7 +333,7 @@ class main(FloatLayout):
 					else:
 						highmove.append(move)
 		if highvote <= 0:
-			poll_message.set("Every move was vetoed, talk it out guys")
+			broadcast(poll_message,"Every move was vetoed, talk it out guys")
 			self.set_legal_moves()
 			self.counting = False
 			return
@@ -337,7 +341,7 @@ class main(FloatLayout):
 		if type(highmove) == list:
 			highmove = random.choice(highmove)
 		
-		poll_message.set("The chosen move is %s" % highmove)
+		broadcast(poll_message,"The chosen move is %s" % highmove)
 		if highmove == "resign":
 			c = custom_game.value
 			if not c is None and "turn" in c:
@@ -641,6 +645,9 @@ async def event_ready():
 	print(f"{secrets['DEFAULT']['nick']} is online!")
 	ws = bot._ws
 	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me bot now listening")
+	for i in range(5):
+		await asyncio.sleep(1)
+		await bot.event_announce()
 
 @bot.event
 async def event_message(ctx):
@@ -667,7 +674,7 @@ async def event_message(ctx):
 						moves[ctx.content] += 1
 					else:
 						moves[processed] += 1
-					db.change_points(ctx.author.name, 1)
+					db.change_points(ctx.author.name, 2)
 					votes.add(ctx.author.name)
 					voted.set(votes)
 			return
@@ -681,7 +688,7 @@ async def event_message(ctx):
 		ws = bot._ws
 		if processed in ["resign", "0"]:
 			if not db.change_points(ctx.author.name, -5):
-				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you need 5 points to resign" % ctx.author.name)
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you need 5 points to vote resign" % ctx.author.name)
 				return
 		flag = False
 		if len(votes) == 0:
@@ -697,7 +704,7 @@ async def event_message(ctx):
 			moves[ctx.content] += db.get_player_level(ctx.author.name)
 		else:
 			moves[processed] += db.get_player_level(ctx.author.name)
-		db.change_points(ctx.author.name, 1)
+		db.change_points(ctx.author.name, 2)
 		votes.add(ctx.author.name)
 		voted.set(votes)
 		t = total_voted.value
@@ -860,6 +867,11 @@ async def command_vip(ctx):
 	params = get_params(ctx.content)
 	if ctx.author.is_mod:
 		return
+	
+	if len(params) == 0:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Spend points towards getting a VIP badge on the bot's channel by typing !vip [number of points]")
+		return
+
 	try:
 		amount = int(params[0])
 	except:
@@ -867,7 +879,7 @@ async def command_vip(ctx):
 		return
 	
 	if amount < 1:
-		await ws.send_privmsg("#%s" % ctx.channel, f"/me You need to specify a non zero amount of points to put towards VIP")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me You need to specify a positive number of points to put towards VIP")
 		return
 	
 	if db.change_points(ctx.author.name, -amount):
@@ -875,7 +887,10 @@ async def command_vip(ctx):
 		if type(result) == str:
 			await ws.send_privmsg("#%s" % secrets['DEFAULT']['channel'], f"/unvip %s" % result)
 			await ws.send_privmsg("#%s" % secrets['DEFAULT']['channel'], f"/vip %s" % ctx.author.name)
-			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
+			if ctx.channel == "twitch_plays_chess_":
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now a channel VIP! PogChamp" % ctx.author.name)
+			else:
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now a VIP on the bot channel" % ctx.author.name)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is now rank %d on the VIP leaderboard with %d vip points." % (ctx.author.name, result[0], result[1]))
 	else:
@@ -1004,6 +1019,7 @@ async def command_give(ctx):
 				return
 		except:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid number given.")
+			return
 		points = db.get_points(name, no_create = True)
 		if points is None:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Invalid username given.")
@@ -1251,9 +1267,10 @@ async def event_announce():
 	ws = bot._ws
 	temp = poll_message.value
 	if not temp is None:
-		await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % temp)
-		if not visiting.value is None:
-			await ws.send_privmsg("#%s" % visiting.value, f"/me %s" % temp)
+		for i in temp:
+			await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % i)
+			if not visiting.value is None:
+				await ws.send_privmsg("#%s" % visiting.value, f"/me %s" % i)
 		poll_message.set(None)
 
 @bot.event
@@ -1262,7 +1279,6 @@ async def event_announcenow(message):
 	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % message)
 	if not visiting.value is None:
 		await ws.send_privmsg("#%s" % visiting.value, f"/me %s" % message)
-	poll_message.set(None)
 
 class chessApp(App):
 	def build(self):
@@ -1278,10 +1294,10 @@ if __name__ == '__main__':
 	history = m.Value(str, "")
 	custom_game = m.Value(dict, None)
 	visiting = m.Value(str, None)
-	poll_message = m.Value(str, None)
+	poll_message = m.Value(list, [])
 	timers = m.dict()
 	timers["visit"] = 30
-	timers["alone"] = 5
+	timers["alone"] = 10
 	p1 = Process(target=bot.run)
 	p2 = Process(target=chessApp().run)
 	p1.start()
