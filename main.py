@@ -69,7 +69,7 @@ class main(FloatLayout):
 		self.fish = Stockfish(parameters={"Minimum Thinking Time": 6000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
-		self.evaluator.depth = "25"
+		self.evaluator.depth = "30"
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
@@ -120,6 +120,10 @@ class main(FloatLayout):
 			
 		if self.board.has_insufficient_material(not self.is_white):
 			return True
+		last = self.board_evaluations[-1]
+		if last["type"] == "cp" and abs(last["value"]) > (self.board.fullmove_number - 15) /2:
+				return True
+		
 		for i in self.board_evaluations:
 			#assume fish white
 			if self.is_white:
@@ -151,7 +155,6 @@ class main(FloatLayout):
 			else:
 				if len(self.board_evaluations) > 3:
 					for i in self.board_evaluations:
-						#assume fish white
 						if self.is_white:
 							const = -1
 						else:
@@ -231,8 +234,6 @@ class main(FloatLayout):
 						self.info_text += "\nWhite mate in %d" % self.board_evaluations[-1]["value"]
 					else:
 						self.info_text += "\nBlack mate in %d" % (self.board_evaluations[-1]["value"] * -1)
-				elif self.evaluate_draw():
-					self.info_text += "\nFish requesting draw"
 				else:
 					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
 
