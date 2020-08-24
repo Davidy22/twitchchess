@@ -197,5 +197,5 @@ class conn():
 	def get_vip_rank(self, user):
 		return self.c.execute("SELECT (SELECT COUNT(*) FROM accounts AS x WHERE x.vip >= t.vip) AS Rank, t.vip FROM accounts as t where name = ?", (user,)).fetchall()[0]
 	
-	def get_vip_list(self):
+	def get_vip_list(self): #TODO: Make this cache
 		return self.c.execute("SELECT t.name, t.vip, (SELECT COUNT(*) FROM accounts AS x WHERE x.vip >= t.vip) AS Rank FROM accounts as t order by Rank, t.id").fetchall()

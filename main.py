@@ -345,6 +345,7 @@ class main(FloatLayout):
 		broadcast(poll_message,"The chosen move is %s" % highmove)
 		if highmove == "resign":
 			c = custom_game.value
+			self.set_legal_moves(end = True)
 			if not c is None and "turn" in c:
 				if c["turn"]:
 					self.end_game("w")
@@ -399,13 +400,13 @@ class main(FloatLayout):
 		self.lastmove = None
 	
 	def end_game(self, result):
-		#TODO: Add global message on game end
 		self.lastmove = None
 		self.board_evaluations = deque([], 4)
 		votes = total_voted.value
 		skill = db.get_level()
 		if not result == "a":
 			self.log(result, skill, votes)
+		c = custom_game.value
 		if result == "w":
 			c = custom_game.value
 			if not c is None:
@@ -430,11 +431,13 @@ class main(FloatLayout):
 			self.update_info(text = "You drew, 50 points awarded to participants", hold = True)
 		elif result == "a":
 			self.update_info(text = "Game aborted", hold = True)
-		else: #TODO: Add prize for challenge winner
+		else:
 			if skill > 1:
 				skill -= 1
 				self.fish.set_skill_level(skill)
 				db.set_level(skill)
+			if not c is None and "challenger" in c:
+				db.change_points(c["challenger"], 2500)
 			self.update_info(text = "Twitch chat lost", hold = True)
 		
 		total_voted.set(set())
@@ -446,13 +449,12 @@ class main(FloatLayout):
 		self.update_history(reset=True)
 		if not self.is_white:
 			self.evaluate_position()
-			c = custom_game.value
 			if not c is None and "challenger" in c:
-				self.set_legal_moves()
+				Clock.schedule_once(self.set_legal_moves, 5)
 			else:
 				self.fish_move()
 		else:
-			self.set_legal_moves()
+			Clock.schedule_once(self.set_legal_moves, 5)
 		self.counting = False
 		self.evaluate_position()
 		
@@ -518,15 +520,20 @@ class main(FloatLayout):
 	def movekey(self, move):
 		return self.board.san(move.from_uci(move.uci()))
 	
-	def set_legal_moves(self):
+	def set_legal_moves(self, end = False):
 		moves.clear()
 		notation_moves_temp = {}
 		count = 1
 		movelist = None
 		legal = list(self.board.legal_moves)
 		legal.sort(key=self.movekey)
-		if len(legal) == 0:
-			self.moves_string = self.format_text("Game is over, no legal moves", font_size=30)
+		if len(legal) == 0 or (type(end) == bool and end):
+			vips = db.get_vip_list()
+			self.moves_string = self.format_text("VIP leaderboard, use !vip to climb", font_size=30)
+			temp = ""
+			for i in range(10):
+				temp += "\n%d. %s - %d points" % (vips[i][2], vips[i][0], vips[i][1])
+			self.moves_string += self.format_text(temp, font_size = 21)
 			self.move_options.text = self.moves_string
 			voted.set(set())
 			vetoed.set(set())
@@ -748,7 +755,6 @@ async def event_log(ctx):
 		for line in wrap(db.get_game(get_params(ctx.content)[0]), 490):
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % line)
 	else:
-		# TODO: Line wrap this one too
 		for line in wrap(history.value, 490):
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s" % line)
 
