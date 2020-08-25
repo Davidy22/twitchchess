@@ -69,7 +69,7 @@ class main(FloatLayout):
 		self.fish = Stockfish(parameters={"Minimum Thinking Time": 6000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
-		self.evaluator.depth = "30"
+		self.evaluator.depth = "50"
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
@@ -80,7 +80,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "19"
+		self.fish.depth = "18"
 		
 		self.custom_init()
 		
