@@ -208,7 +208,7 @@ class main(FloatLayout):
 	def update_info(self, dt = 0, text = None, hold = False):
 		c = custom_game.value
 		if self.hold_message_ticks > 0:
-			self.hold_message_ticks -= 1
+			self.hold_message_ticks -= dt
 			return
 		if hold:
 			self.hold_message_ticks = 5
@@ -359,7 +359,7 @@ class main(FloatLayout):
 				self.end_game("d")
 			else:
 				self.update_info(text = "Draw rejected", hold = True)
-				self.set_legal_moves()
+				self.set_legal_moves(end = True)
 				self.counting = False
 				self.update_plot(init = True)
 			return
@@ -447,12 +447,13 @@ class main(FloatLayout):
 		self.is_white = not self.is_white
 		self.custom_init()
 		self.update_history(reset=True)
+		self.set_legal_moves(end = True)
 		if not self.is_white:
 			self.evaluate_position()
 			if not c is None and "challenger" in c:
 				Clock.schedule_once(self.set_legal_moves, 5)
 			else:
-				self.fish_move()
+				Clock.schedule_once(self.fish_move_, 5)
 		else:
 			Clock.schedule_once(self.set_legal_moves, 5)
 		self.counting = False
@@ -724,7 +725,7 @@ async def event_message(ctx):
 			else:
 				await asyncio.sleep(timers["visit"])
 			await bot.event_announce()
-			for i in range(30):
+			for i in range(20):
 				await asyncio.sleep(1)
 				await bot.event_announce()
 
