@@ -66,7 +66,7 @@ class main(FloatLayout):
 		
 		self.render = kiImage(pos = (-280,0), height=700, allow_stretch = True)
 		self.add_widget(self.render)
-		self.fish = Stockfish(parameters={"Minimum Thinking Time": 6000, "Slow Mover": 10})
+		self.fish = Stockfish(parameters={"Minimum Thinking Time": 3000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
 		self.evaluator.depth = "50"
@@ -121,7 +121,7 @@ class main(FloatLayout):
 		if self.board.has_insufficient_material(not self.is_white):
 			return True
 		last = self.board_evaluations[-1]
-		if last["type"] == "cp" and abs(last["value"]) > (self.board.fullmove_number - 15) /2:
+		if last["type"] == "cp" and (abs(last["value"]) < (self.board.fullmove_number - 15) /2):
 				return True
 		
 		for i in self.board_evaluations:
@@ -724,7 +724,7 @@ async def event_message(ctx):
 			else:
 				await asyncio.sleep(timers["visit"])
 			await bot.event_announce()
-			for i in range(15):
+			for i in range(30):
 				await asyncio.sleep(1)
 				await bot.event_announce()
 
