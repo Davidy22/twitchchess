@@ -66,7 +66,7 @@ class main(FloatLayout):
 		
 		self.render = kiImage(pos = (-280,0), height=700, allow_stretch = True)
 		self.add_widget(self.render)
-		self.fish = Stockfish(parameters={"Minimum Thinking Time": 3000, "Slow Mover": 10})
+		self.fish = Stockfish(parameters={"Minimum Thinking Time": 1000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
 		self.evaluator.depth = "50"
@@ -80,7 +80,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "18"
+		self.fish.depth = "22"
 		
 		self.custom_init()
 		
@@ -288,7 +288,7 @@ class main(FloatLayout):
 	
 	def fish_move_(self, dt):
 		self.fish.set_fen_position(self.board.fen())
-		self.lastmove = self.fish.get_best_move()
+		self.lastmove = self.fish.get_best_move_time(2000)
 		broadcast(poll_message,"Stockfish went %s" % self.board.san(chess.Move.from_uci(self.lastmove)))
 		self.board.push_uci(self.lastmove)
 		self.update_board()
