@@ -1000,7 +1000,7 @@ async def command_pgnplay(ctx):
 async def command_claim(ctx):
 	ws = bot._ws
 	result = db.get_daily_status(ctx.author.name)
-	if result == True:
+	if result is None or result == True:
 		db.change_points(ctx.author.name, 69)
 		db.reset_account_date(ctx.author.name)
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me 69 points have been added to your account.")
