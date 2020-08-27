@@ -359,7 +359,7 @@ class main(FloatLayout):
 				self.end_game("d")
 			else:
 				self.update_info(text = "Draw rejected", hold = True)
-				self.set_legal_moves(end = True)
+				self.set_legal_moves()
 				self.counting = False
 				self.update_plot(init = True)
 			return
