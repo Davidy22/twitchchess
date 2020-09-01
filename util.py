@@ -18,3 +18,4 @@ def broadcast(poll_message, message):
 	else:
 		temp.append(message)
 		poll_message.set(temp)
+

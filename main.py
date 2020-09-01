@@ -696,8 +696,8 @@ async def event_message(ctx):
 	if processed in moves and not (ctx.author.name in votes):
 		ws = bot._ws
 		if processed in ["resign", "0"]:
-			if not db.change_points(ctx.author.name, -5):
-				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you need 5 points to vote resign" % ctx.author.name)
+			if not db.change_points(ctx.author.name, -10):
+				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you need 10 points to vote resign" % ctx.author.name)
 				return
 		flag = False
 		if len(votes) == 0:
@@ -1287,7 +1287,7 @@ async def event_announcenow(message):
 	await ws.send_privmsg(secrets['DEFAULT']['channel'], f"/me %s" % message)
 	if not visiting.value is None:
 		await ws.send_privmsg("#%s" % visiting.value, f"/me %s" % message)
-
+#TODO: Autodelayed chat for visiting
 class chessApp(App):
 	def build(self):
 		return main()
