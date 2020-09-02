@@ -80,7 +80,7 @@ class main(FloatLayout):
 		self.round = db.get_round_no()
 		
 		self.fish.set_skill_level(db.get_level())
-		self.fish.depth = "22"
+		self.fish.depth = "30"
 		
 		self.custom_init()
 		
@@ -235,7 +235,7 @@ class main(FloatLayout):
 					else:
 						self.info_text += "\nBlack mate in %d" % (self.board_evaluations[-1]["value"] * -1)
 				else:
-					self.info_text += "\nBoard evaluation: %.2f" % (self.board_evaluations[-1]["value"] / 100)
+					self.info_text += "\nEval: %.2f" % (self.board_evaluations[-1]["value"] / 100)
 
 			
 			self.info_text += ", Game %d, W:%d, D:%d, L:%d" % (self.round, self.record[0], self.record[1], self.record[2])
@@ -1267,8 +1267,9 @@ async def event_abort(ctx, override):
 		moves["abort"] = 1
 		notation_moves.set({"abort":["abort"]})
 		voted.set("twitch_plays_chess_")
-		await asyncio.sleep(1)
-		await bot.event_announce()
+		for i in range(4):
+			await asyncio.sleep(1)
+			await bot.event_announce()
 
 @bot.event
 async def event_announce():
