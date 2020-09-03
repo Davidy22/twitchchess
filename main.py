@@ -1256,8 +1256,10 @@ async def command_leaderboard(ctx):
 		except:
 			username = ctx.author.name
 		result = db.get_vip_rank(username)
-		await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is number %d on the VIP leaderboard with %d points spent" % (username, result[0], result[1]))
-			
+		if result[1] == 0:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s isn't on the leaderboard yet. Put points into !vip to rank up" % username)
+		else:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is number %d on the VIP leaderboard with %d points spent" % (username, result[0], result[1]))
 	
 @bot.event
 async def event_abort(ctx, override):
