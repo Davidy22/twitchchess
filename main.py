@@ -66,10 +66,10 @@ class main(FloatLayout):
 		
 		self.render = kiImage(pos = (-280,0), height=700, allow_stretch = True)
 		self.add_widget(self.render)
-		self.fish = Stockfish(parameters={"Minimum Thinking Time": 1000, "Slow Mover": 10})
+		self.fish = Stockfish("./stockfish", parameters={"Minimum Thinking Time": 1000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
-		self.evaluator.depth = "50"
+		self.evaluator.depth = "30"
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
@@ -1257,7 +1257,7 @@ async def command_leaderboard(ctx):
 			username = ctx.author.name
 		result = db.get_vip_rank(username)
 		if result[1] == 0:
-			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s isn't on the leaderboard yet. Put points into !vip to rank up" % username)
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s isn't on the leaderboard yet. Put points into !vip to rank up to get a VIP badge" % username)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is number %d on the VIP leaderboard with %d points spent" % (username, result[0], result[1]))
 	
