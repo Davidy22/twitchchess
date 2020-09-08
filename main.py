@@ -69,7 +69,7 @@ class main(FloatLayout):
 		self.fish = Stockfish("./stockfish", parameters={"Minimum Thinking Time": 1000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
 		self.evaluator.set_skill_level(20)
-		self.evaluator.depth = "30"
+		self.evaluator.depth = "50"
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
@@ -877,7 +877,7 @@ async def command_vip(ctx):
 		return
 	
 	if len(params) == 0:
-		await ws.send_privmsg("#%s" % ctx.channel, f"/me Spend points towards getting a VIP badge on the bot's channel by typing !vip [number of points]")
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Type !vip [number of points] to spend points towards getting a channel VIP badge")
 		return
 
 	try:
