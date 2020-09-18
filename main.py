@@ -450,6 +450,7 @@ class main(FloatLayout):
 		self.set_legal_moves(end = True)
 		if not self.is_white:
 			self.evaluate_position()
+			c = custom_game.value
 			if not c is None and "challenger" in c:
 				Clock.schedule_once(self.set_legal_moves, 5)
 			else:
@@ -686,6 +687,9 @@ async def event_message(ctx):
 					db.change_points(ctx.author.name, 2)
 					votes.add(ctx.author.name)
 					voted.set(votes)
+					for i in range(5):
+						await asyncio.sleep(1)
+						await bot.event_announce()
 			return
 		if ctx.author.name == c["challenger"]:
 			return
