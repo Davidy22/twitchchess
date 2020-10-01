@@ -677,6 +677,9 @@ async def event_message(ctx):
 				
 				if processed in moves and not (ctx.author.name in votes):
 					ws = bot._ws
+					if lock.value and str(ctx.channel) == secrets['DEFAULT']['channel'][1:]:
+						await ws.send_privmsg("#%s" % ctx.channel, f"/me Inputs locked on this channel, visit https://www.twitch.tv/%s to play." % visiting.value)
+						return
 					
 					await bot.event_announcenow("%s has gone with move %s." % (c["challenger"], ctx.content))
 					
@@ -699,6 +702,9 @@ async def event_message(ctx):
 	votes = voted.value
 	if processed in moves and not (ctx.author.name in votes):
 		ws = bot._ws
+		if lock.value and str(ctx.channel) == secrets['DEFAULT']['channel'][1:]:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Inputs locked on this channel, visit https://www.twitch.tv/%s to play." % visiting.value)
+			return
 		if processed in ["resign", "0"]:
 			if not db.change_points(ctx.author.name, -10):
 				await ws.send_privmsg("#%s" % ctx.channel, f"/me %s, you need 10 points to vote resign" % ctx.author.name)
@@ -1110,7 +1116,7 @@ async def command_joinstream(ctx):
 			db.change_points(ctx.author.name, 5)
 			await bot.join_channels(["#%s" % ctx.author.name])
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Now monitoring %s's stream chat, type !leavestream to have me leave." % ctx.author.name)
-			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot has arrived in your stream chat, type !leavestream to have me leave.")
+			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot has arrived in your stream chat, type !lock to lock moves on the bot channel, type !leavestream to have me leave.")
 			visiting.set(ctx.author.name)
 			await bot.event_abort(ctx, True)
 		else:
@@ -1122,6 +1128,7 @@ async def command_joinstream(ctx):
 async def command_leavestream(ctx):
 	ws = bot._ws
 	if visiting.value == ctx.author.name:
+		lock = False
 		await bot.part_channels(["#%s" % ctx.author.name])
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me No longer monitoring %s's chat" % ctx.author.name)
 		visiting.set(None)
@@ -1137,6 +1144,7 @@ async def command_boot(ctx):
 		if visiting.value is None:
 			return
 		else:
+			lock = False
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Disconnecting from channel")
 			await bot.part_channels([visiting.value])
 			visiting.set(None)
@@ -1181,6 +1189,9 @@ async def command_abort(ctx):
 @bot.command(name="veto")
 async def command_veto(ctx):
 	ws = bot._ws
+	if lock.value and str(ctx.channel) == secrets['DEFAULT']['channel'][1:]:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Inputs locked on this channel, visit https://www.twitch.tv/%s to play." % visiting.value)
+		return
 	params = get_params(ctx.content)
 	try:
 		veto = params[0]
@@ -1240,6 +1251,26 @@ async def command_changetimer(ctx):
 	else:
 		timers["visit"] = new
 	await ws.send_privmsg("#%s" % ctx.channel, f"/me Vote clock is now %d seconds" % new)
+
+
+@bot.command(name="lock")
+async def command_lock(ctx):
+	ws = bot._ws
+	
+	temp = visiting.value
+	if temp is None:
+		return
+	else:
+		if not ctx.author.name in ["twitch_plays_chess_", temp]:
+			await ws.send_privmsg("#%s" % ctx.channel, f"/me Only the channel owner or %s can use !lock" % temp)
+			return
+	new = not lock.value
+	lock.set(new)
+	
+	if new:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Bot channel locked")
+	else:
+		await ws.send_privmsg("#%s" % ctx.channel, f"/me Bot channel unlocked")
 
 @bot.command(name="leaderboard")
 async def command_leaderboard(ctx):
@@ -1310,9 +1341,10 @@ if __name__ == '__main__':
 	custom_game = m.Value(dict, None)
 	visiting = m.Value(str, None)
 	poll_message = m.Value(list, [])
+	lock = m.Value(bool, False) # Not that kind of lock
 	timers = m.dict()
 	timers["visit"] = 30
-	timers["alone"] = 10
+	timers["alone"] = 7
 	p1 = Process(target=bot.run)
 	p2 = Process(target=chessApp().run)
 	p1.start()
