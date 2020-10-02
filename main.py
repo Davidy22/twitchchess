@@ -1119,6 +1119,7 @@ async def command_joinstream(ctx):
 			await ws.send_privmsg("#%s" % ctx.author.name, f"/me Chess bot has arrived in your stream chat, type !lock to lock moves on the bot channel, type !leavestream to have me leave.")
 			visiting.set(ctx.author.name)
 			await bot.event_abort(ctx, True)
+			lock.set(False)
 		else:
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me %s is using the stream tool currently" % cur)
 	else:
@@ -1128,7 +1129,7 @@ async def command_joinstream(ctx):
 async def command_leavestream(ctx):
 	ws = bot._ws
 	if visiting.value == ctx.author.name:
-		lock = False
+		lock.set(False)
 		await bot.part_channels(["#%s" % ctx.author.name])
 		await ws.send_privmsg("#%s" % ctx.channel, f"/me No longer monitoring %s's chat" % ctx.author.name)
 		visiting.set(None)
@@ -1144,7 +1145,7 @@ async def command_boot(ctx):
 		if visiting.value is None:
 			return
 		else:
-			lock = False
+			lock.set(False)
 			await ws.send_privmsg("#%s" % ctx.channel, f"/me Disconnecting from channel")
 			await bot.part_channels([visiting.value])
 			visiting.set(None)
