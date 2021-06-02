@@ -68,8 +68,6 @@ class main(FloatLayout):
 		self.add_widget(self.render)
 		self.fish = Stockfish("./stockfish", parameters={"Minimum Thinking Time": 1000, "Slow Mover": 10})
 		self.evaluator = Stockfish(parameters={"Minimum Thinking Time": 5})
-		self.evaluator.set_skill_level(20)
-		self.evaluator.depth = "50"
 		self.board = chess.Board()
 		self.renderer = render.DrawChessPosition()
 		self.moves_string = ""
@@ -121,7 +119,7 @@ class main(FloatLayout):
 		if self.board.has_insufficient_material(not self.is_white):
 			return True
 		last = self.board_evaluations[-1]
-		if last["type"] == "cp" and (abs(last["value"]) < (self.board.fullmove_number - 15) /2):
+		if last["type"] == "cp" and (abs(last["value"]) < (self.board.fullmove_number - 10) /2):
 				return True
 		
 		for i in self.board_evaluations:
@@ -661,7 +659,10 @@ async def event_ready():
 
 @bot.event
 async def event_message(ctx):
-	await bot.handle_commands(ctx)
+	try:
+		await bot.handle_commands(ctx)
+	except:
+		pass
 	if ctx.author.name == "twitch_plays_chess_":
 		return
 	if len(ctx.content) > 10:
